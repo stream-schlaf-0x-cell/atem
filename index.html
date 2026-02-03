@@ -1,0 +1,1529 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#0a0a0a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="description" content="Atem & Stille - Eine meditative Atem-App mit generativen Visuals.">
+    <title>Atem & Stille</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Forum&family=Tenor+Sans&display=swap" rel="stylesheet">
+    <style>
+        /* --- CSS STYLES --- */
+        :root {
+            --bg-color: #0a0a0a; --text-color: #efece6;
+            --accent-primary: #4a638c; --accent-secondary: #e6c65a;
+            --glass-bg: rgba(10, 10, 10, 0.75);
+            --font-stack: 'Tenor Sans', 'Forum', 'Optima', 'Segoe UI Light', sans-serif;
+            --safe-top: env(safe-area-inset-top, 20px);
+            --safe-bottom: env(safe-area-inset-bottom, 20px);
+        }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        
+        body {
+            background-color: var(--bg-color); color: var(--text-color);
+            font-family: var(--font-stack); margin: 0; height: 100dvh;
+            display: flex; flex-direction: column; overflow: hidden;
+            transition: background-color 2.5s ease; 
+            overscroll-behavior: none;
+            touch-action: none; /* Disable native browser gestures */
+        }
+
+        /* THEMES */
+        body.theme-himmelblau { --bg-color: #0b1026; --accent-primary: #6b8c96; }
+        body.theme-goldene-ruhe { --bg-color: #120c08; --accent-primary: #ba9655; }
+        body.theme-lotusabend { --bg-color: #0e0b0c; --accent-primary: #a65959; }
+        body.theme-dantian-gruen { --bg-color: #071012; --accent-primary: #5d7a66; }
+        body.theme-reines-licht { --bg-color: #121212; --accent-primary: #cfd8dc; }
+        body.theme-mani-glanz { --bg-color: #070709; --accent-primary: #5e7291; }
+        
+        /* LAYOUT */
+        #visual-area { flex-grow: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative; width: 100%; height: 100%; }
+        .viz-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: block; z-index: 0; }
+        
+        /* TYPOGRAPHY & TEXT */
+        .instruction-text {
+            position: absolute; left: 50%; transform: translateX(-50%);
+            font-size: 1.6rem; font-weight: 300; letter-spacing: 0.12em;
+            padding: 25px 45px; border-radius: 16px;
+            pointer-events: auto !important; cursor: pointer;
+            z-index: 1000; user-select: none;
+            opacity: 0.95; color: var(--text-color);
+            background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01));
+            transition: transform 0.2s ease, opacity 0.3s ease;
+            backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+        }
+        .instruction-text:active { transform: translateX(-50%) scale(0.96); background: rgba(255,255,255,0.08); }
+        body.app-running .instruction-text { pointer-events: none !important; cursor: default; background: transparent; backdrop-filter: none; -webkit-backdrop-filter: none; }
+
+        #breath-timer {
+            position: absolute; left: 50%; transform: translateX(-50%);
+            font-size: 1.8rem; font-weight: 300; letter-spacing: 0.1em;
+            color: var(--accent-secondary); background: rgba(0,0,0,0.2);
+            padding: 6px 14px; border-radius: 14px; pointer-events: none; z-index: 110;
+            font-variant-numeric: tabular-nums; transition: opacity 0.5s ease;
+        }
+
+        /* UI CONTAINER (Glassmorphism) */
+        #ui-container {
+            position: absolute; bottom: 0; width: 100%; background: var(--glass-bg);
+            backdrop-filter: blur(25px) saturate(180%); -webkit-backdrop-filter: blur(25px) saturate(180%);
+            border-top: 1px solid rgba(255,255,255,0.08); border-radius: 24px 24px 0 0;
+            padding: 12px 20px calc(20px + var(--safe-bottom));
+            transform: translateY(0); transition: transform 0.6s cubic-bezier(0.19, 1, 0.22, 1);
+            z-index: 1000; will-change: transform; pointer-events: auto;
+            max-height: 85dvh; overflow-y: auto; -webkit-overflow-scrolling: touch;
+            scrollbar-width: none;
+            box-shadow: 0 -10px 40px rgba(0,0,0,0.5);
+        }
+        #ui-container.hidden { transform: translateY(110%); }
+        #ui-container::-webkit-scrollbar { display: none; }
+
+        .handle { width: 40px; height: 4px; background: rgba(255,255,255,0.15); border-radius: 10px; margin: 8px auto 24px; cursor: pointer; position: relative; z-index: 10; pointer-events: auto; }
+        
+        /* CHIPS & SCROLLERS */
+        .preset-scroll { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 15px; margin-bottom: 15px; scrollbar-width: none; mask-image: linear-gradient(to right, black 90%, transparent 100%); -webkit-mask-image: linear-gradient(to right, black 90%, transparent 100%); }
+        .preset-scroll::-webkit-scrollbar { display: none; } 
+
+        .chip { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.06); color: rgba(255,255,255,0.6); padding: 8px 16px; border-radius: 20px; font-size: 0.9rem; white-space: nowrap; cursor: pointer; transition: all 0.3s ease; -webkit-tap-highlight-color: transparent; }
+        .chip.active { background: rgba(255,255,255,0.25); color: #fff; border-color: var(--accent-primary); font-weight: 500; box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
+        
+        #duration-scroll input { width: 65px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.06); color: var(--text-color); padding: 8px; border-radius: 20px; font-size: 0.9rem; text-align: center; transition: all 0.3s; }
+        #duration-scroll input:focus { border-color: var(--accent-primary); background: rgba(255,255,255,0.1); }
+
+        /* CONTROLS GRID */
+        .controls-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 18px; }
+        .full-width-col { grid-column: 1 / -1; }
+        label { font-size: 0.75rem; text-transform: uppercase; font-weight: 600; color: rgba(255,255,255,0.35); margin-bottom: 6px; display: block; letter-spacing: 0.05em; }
+        input, select { width: 100%; background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.08); color: var(--text-color); padding: 12px; border-radius: 12px; font-size: 1rem; outline: none; appearance: none; transition: border-color 0.2s; }
+        input:focus, select:focus { border-color: var(--accent-primary); }
+
+        /* MAIN BUTTONS */
+        .btn { background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary)); color: #fff; border: none; padding: 18px; border-radius: 16px; font-size: 1.1rem; font-weight: 600; width: 100%; text-transform: uppercase; letter-spacing: 0.05em; cursor: pointer; transition: transform 0.15s, opacity 0.2s; user-select: none; box-shadow: 0 4px 20px rgba(0,0,0,0.3); }
+        .btn:active { transform: scale(0.98); }
+        .btn.stop-mode { background: var(--accent-primary); opacity: 0.95; }
+        #stop-float { height: 56px; padding: 0; display: flex; align-items: center; justify-content: center; }
+
+        .mode-row { display: flex; gap: 8px; margin-bottom: 24px; justify-content: center; flex-wrap: wrap; }
+
+        /* SLIDERS */
+        input[type=range] { -webkit-appearance: none; width: 100%; background: transparent; cursor: pointer; margin: 0; padding: 0; }
+        input[type=range]:focus { outline: none; }
+        input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 6px; cursor: pointer; background: rgba(255, 255, 255, 0.15); border-radius: 3px; border: none; }
+        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; height: 20px; width: 20px; border-radius: 50%; background: #ffffff; box-shadow: 0 2px 6px rgba(0,0,0,0.4); cursor: pointer; margin-top: -7px; transition: transform 0.1s ease; }
+        input[type=range]:active::-webkit-slider-thumb { transform: scale(1.1); }
+        
+        #color-slider::-webkit-slider-runnable-track { background: var(--color-slider-gradient, rgba(255,255,255,0.15)); }
+        #vol-slider::-webkit-slider-thumb { background: var(--accent-primary); }
+
+        /* TOP FLOATING CONTROLS */
+        .top-ctrl { transition: width 0.3s cubic-bezier(0.2, 0.8, 0.2, 1), background 0.3s; overflow: hidden; }
+        @media (max-width: 767px) {
+            .top-ctrl { min-width: 50px !important; width: 50px !important; padding: 0 !important; justify-content: center; }
+            .top-ctrl input { display: none; width: 100px; }
+            .top-ctrl.expanded { width: 180px !important; padding: 0 15px !important; justify-content: space-between; }
+            .top-ctrl.expanded input { display: block; }
+            #volume-control { flex-direction: row-reverse; }
+        }
+
+        #volume-control, #color-control { position: fixed; top: calc(var(--safe-top) + 20px); display: flex; align-items: center; gap: 15px; background: rgba(0,0,0,0.3); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); padding: 0 18px; height: 50px; border-radius: 25px; border: 1px solid rgba(255,255,255,0.08); z-index: 250; min-width: 160px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); }
+        #volume-control { right: 85px; }
+        #color-control { left: 20px; }
+        .ctrl-icon { width: 24px; height: 24px; fill: var(--text-color); opacity: 0.7; flex-shrink: 0; }
+
+        /* ADDITIONAL FLOATING BUTTONS */
+        .float-btn { position: fixed; top: calc(var(--safe-top) + 20px); width: 50px; height: 50px; border-radius: 50%; background: rgba(0,0,0,0.3); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.08); display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.3s ease; z-index: 250; color: var(--text-color); opacity: 0.7; box-shadow: 0 4px 15px rgba(0,0,0,0.2); }
+        .float-btn:hover { background: rgba(0,0,0,0.5); opacity: 1; transform: scale(1.05); }
+        .float-btn svg { width: 24px; height: 24px; fill: currentColor; }
+        
+        #top-random-btn { right: 20px; }
+        #desktop-viz-toggle { right: 380px; display: none; }
+        @media (min-width: 768px) { #desktop-viz-toggle { display: flex; } }
+
+        /* XY PAD & MODALS */
+        #xy-pad-container { display: none; flex-direction: column; align-items: center; position: fixed; z-index: 2000; background: rgba(15, 15, 15, 0.9); backdrop-filter: blur(25px); -webkit-backdrop-filter: blur(25px); border: 1px solid rgba(255,255,255,0.1); padding: 25px; transition: opacity 0.3s, transform 0.3s; }
+        @media (max-width: 767px) { #xy-pad-container { bottom: 0; left: 0; width: 100%; border-radius: 24px 24px 0 0; max-height: 85vh; overflow-y: auto; box-shadow: 0 -10px 50px rgba(0,0,0,0.6); } }
+        @media (min-width: 768px) { #xy-pad-container { top: 50%; right: 40px; transform: translateY(-50%); width: 340px; border-radius: 24px; max-height: 90vh; box-shadow: 0 10px 50px rgba(0,0,0,0.4); } }
+
+        #xy-pad { width: 100%; max-width: 280px; height: 220px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; position: relative; touch-action: none; cursor: crosshair; box-shadow: inset 0 0 30px rgba(0,0,0,0.3); }
+        #xy-cursor { width: 20px; height: 20px; background: var(--accent-primary); border: 2px solid #fff; border-radius: 50%; position: absolute; transform: translate(-50%, -50%); pointer-events: none; box-shadow: 0 2px 10px rgba(0,0,0,0.5); will-change: top, left; }
+        
+        .xy-label { position: absolute; font-size: 0.65rem; color: #fff; opacity: 0.4; text-transform: lowercase; pointer-events: none; font-weight: 400; letter-spacing: 0.05em; }
+        .xy-tl { top: 10px; left: 10px; } .xy-tr { top: 10px; right: 10px; } .xy-bl { bottom: 10px; left: 10px; } .xy-br { bottom: 10px; right: 10px; }
+        .xy-ml { left: 10px; top: 50%; transform: translateY(-50%); } .xy-mr { right: 10px; top: 50%; transform: translateY(-50%); }
+
+        .slider-group { width: 100%; max-width: 280px; margin-top: 20px; }
+        .slider-group label { display: flex; justify-content: space-between; font-size: 0.8rem; opacity: 0.8; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.05em; margin-top: 16px; }
+
+        /* SUMMARY OVERLAY */
+        #summary-modal { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(10, 10, 10, 0.95); backdrop-filter: blur(20px); display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 1100; padding: 30px; text-align: center; opacity: 0; pointer-events: none; transition: opacity 0.5s ease; }
+        #summary-modal.visible { opacity: 1; pointer-events: all; }
+        .summary-stat { font-size: 4rem; font-weight: 100; color: var(--accent-primary); margin: 20px 0; font-variant-numeric: tabular-nums; }
+        .summary-quote { font-size: 1.3rem; opacity: 0.9; line-height: 1.5; margin: 20px auto 10px; max-width: 600px; font-family: 'Forum', serif; }
+        .summary-author { font-size: 0.95rem; opacity: 0.6; margin: 10px auto 0; font-weight: 300; letter-spacing: 0.05em; }
+
+        /* BOTTOM HUD ELEMENTS */
+        #bottom-controls { position: fixed; bottom: calc(var(--safe-bottom) + 20px); right: 20px; display: flex; align-items: center; gap: 12px; z-index: 240; pointer-events: none; }
+        #session-timer { 
+            font-size: 1.1rem; color: var(--text-color); font-variant-numeric: tabular-nums;
+            opacity: 0; padding: 6px 12px; background: rgba(0,0,0,0.3); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+            border-radius: 12px; display: flex; flex-direction: column; align-items: center; line-height: 1; justify-content: center;
+            transition: opacity 0.5s ease; pointer-events: none;
+        }
+        #session-timer.visible { opacity: 0.8; pointer-events: auto; }
+        #session-timer::after { content: 'ZEIT'; font-size: 0.5rem; opacity: 0.5; margin-top: 2px; letter-spacing: 0.1em; }
+        
+        #preset-display, #tap-float {
+            position: fixed; bottom: 26px; transform: none;
+            font-size: 0.9rem; letter-spacing: 0.1em; color: #fff;
+            background: rgba(20,20,20,0.6); backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px);
+            padding: 0 20px; border-radius: 14px; border: 1px solid rgba(255,255,255,0.1);
+            pointer-events: none; opacity: 0; transition: opacity 0.5s; z-index: 190;
+            text-transform: uppercase; font-weight: 500; display: flex; align-items: center; gap: 10px; height: 54px;
+        }
+        #preset-display { left: calc(50% + 120px); border-color: var(--accent-primary); }
+        #tap-float { right: calc(50% + 120px); cursor: pointer; justify-content: center; }
+        #preset-display.visible, #tap-float.visible { opacity: 1; }
+        #tap-float.visible { pointer-events: auto; }
+        
+        #tap-float.active {
+            background: rgba(255,255,255,0.25);
+            color: #fff;
+            border-color: var(--accent-primary);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        }
+        .pd-col { display: flex; flex-direction: column; align-items: center; line-height: 1; }
+        .pd-num { font-size: 1.1rem; font-weight: 600; margin-bottom: 2px; }
+        .pd-meta { font-size: 0.55rem; opacity: 0.7; text-transform: uppercase; letter-spacing: 0.05em; }
+        .pd-sep { opacity: 0.4; font-weight: 300; margin: 0 2px; }
+
+        /* RESTORE UI BUTTON */
+        #restore-ui-btn {
+            position: fixed; bottom: calc(var(--safe-bottom) + 20px); left: 50%; transform: translateX(-50%);
+            width: 56px; height: 56px; border-radius: 50%;
+            background: rgba(255, 255, 255, 0.12); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.2); color: var(--text-color);
+            display: flex; align-items: center; justify-content: center; cursor: pointer; z-index: 2000;
+            opacity: 0; pointer-events: none; transition: all 0.4s ease;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.3); will-change: opacity, transform;
+        }
+        #restore-ui-btn:hover { background: rgba(255, 255, 255, 0.25); transform: translateX(-50%) scale(1.1); }
+        #restore-ui-btn svg { width: 30px; height: 30px; fill: currentColor; opacity: 0.9; }
+        body.ui-hidden:not(.app-running) #restore-ui-btn { opacity: 1; pointer-events: auto; animation: gentlePulse 3s infinite ease-in-out; }
+        @keyframes gentlePulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(255,255,255,0); } 50% { box-shadow: 0 0 0 10px rgba(255,255,255,0.05); } }
+
+        /* RESPONSIVE TWEAKS */
+        .pos-top .instruction-text { top: 18%; } .pos-top #breath-timer { top: 28%; }
+        .pos-center .instruction-text { top: 45%; } .pos-center #breath-timer { top: 55%; }
+        .pos-bottom .instruction-text { bottom: 25%; } .pos-bottom #breath-timer { bottom: 15%; }
+        body:not(.ui-hidden) #breath-timer { opacity: 0 !important; pointer-events: none; }
+        
+        /* Pacer Arrows */
+        #breath-timer[data-phase="in"]::before { content: "↑"; margin-right: 6px; opacity: 0.7; }
+        #breath-timer[data-phase="out"]::before { content: "↓"; margin-right: 6px; opacity: 0.7; }
+        #breath-timer[data-phase*="hold"]::before { content: "="; margin-right: 6px; opacity: 0.7; }
+
+        @media (min-width: 1025px) {
+            #ui-container { max-width: 680px; left: 50%; bottom: 40px; transform: translateX(-50%); border-radius: 24px; padding: 25px 35px; }
+            #ui-container.hidden { transform: translate(-50%, 130%); }
+            .preset-scroll { flex-wrap: wrap; justify-content: center; overflow: visible; }
+        }
+        @media (max-width: 1024px) {
+            body.ui-hidden #breath-timer { top: auto !important; bottom: 35px !important; right: 50% !important; margin-right: 130px !important; transform: none !important; }
+            #bottom-controls { right: auto !important; left: 50% !important; bottom: 35px !important; margin-left: 130px !important; }
+            #preset-display { bottom: 100px !important; left: 20px !important; right: auto !important; transform: none !important; }
+            #tap-float { bottom: 100px !important; right: 20px !important; left: auto !important; transform: none !important; width: auto !important; padding: 0 18px !important; }
+            .pd-meta { display: none; } /* Hide granular labels on mobile */
+            .pos-center .instruction-text { top: 50% !important; background: rgba(0,0,0,0.3); backdrop-filter: blur(8px); }
+        }
+        @media (max-width: 767px) {
+            #summary-modal { overflow-y: auto; justify-content: flex-start; padding-top: 80px; }
+            .summary-stat { font-size: 3rem; }
+            #timing-toggle-btn { display: block; margin: 0 auto 15px auto; width: auto; font-size: 0.8rem; padding: 8px 16px; opacity: 0.8; }
+            #timing-grid { display: none; }
+            #timing-grid.visible { display: grid; }
+        }
+        #timing-toggle-btn { display: none; } /* Hidden on desktop */
+    </style>
+</head>
+<body class="theme-lotusabend">
+
+    <div id="visual-area" class="pos-center">
+        <canvas id="viz-canvas" class="viz-canvas"></canvas>
+        <div class="instruction-text" id="instruction">Atmen</div>
+        <div id="breath-timer"></div>
+        <div id="preset-display"></div>
+        <div id="bottom-controls"><div id="session-timer"></div></div>
+        
+        <div id="volume-control" class="top-ctrl">
+            <svg class="ctrl-icon" id="vol-icon" viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
+            <input type="range" id="vol-slider" min="0" max="1" step="0.01">
+        </div>
+        <div id="color-control" class="top-ctrl">
+            <svg class="ctrl-icon" id="color-icon" viewBox="0 0 24 24"><path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9c.83 0 1.5-.67 1.5-1.5 0-.39-.15-.74-.39-1.01-.23-.26-.38-.61-.38-.99 0-.83.67-1.5 1.5-1.5H16c2.76 0 5-2.24 5-5 0-4.42-4.03-8-9-8zm-5.5 9c-.83 0-1.5-.67-1.5-1.5S5.67 9 6.5 9 8 9.67 8 10.5 7.33 12 6.5 12zm3-4C8.67 8 8 7.33 8 6.5S8.67 5 9.5 5s1.5.67 1.5 1.5S10.33 8 9.5 8zm5 0c-.83 0-1.5-.67-1.5-1.5S13.67 5 14.5 5s1.5.67 1.5 1.5S15.33 8 14.5 8zm3 4c-.83 0-1.5-.67-1.5-1.5S16.67 9 17.5 9s1.5.67 1.5 1.5S18.33 12 17.5 12z"/></svg>
+            <input type="range" id="color-slider" min="0" max="100" step="0.1" value="0">
+        </div>
+        <div id="top-random-btn" class="float-btn" onclick="app.randomizeVisuals()">
+            <svg viewBox="0 0 24 24"><path d="M10.59 9.17L5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zM14.83 13.41l-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04L14.83 13.41z"/></svg>
+        </div>
+        <div id="desktop-viz-toggle" class="float-btn" onclick="app.toggleMixer()" title="Visuals bearbeiten">
+            <svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+        </div>
+    </div>
+
+    <div id="summary-modal">
+        <h2 style="font-weight: 300; opacity: 0.5; font-size: 1.5rem; text-transform: uppercase; letter-spacing: 0.1em;">Sitzung beendet</h2>
+        <div id="summary-time" class="summary-stat">0m</div>
+        <p class="summary-quote" id="quote-text"></p>
+        <div id="quote-author" class="summary-author"></div>
+        <button class="btn" style="margin-top: 40px; width: auto; padding: 14px 40px;" onclick="app.closeSummary()">Schließen</button>
+    </div>
+
+    <div id="ui-container">
+        <div class="handle"></div>
+        <div id="menu-shuffle-btn" class="float-btn" style="position:absolute; top:15px; right:20px; box-shadow:none; border:1px solid rgba(255,255,255,0.1);" onclick="app.shuffleSession()">
+            <svg viewBox="0 0 24 24"><path d="M10.59 9.17L5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zM14.83 13.41l-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04L14.83 13.41z"/></svg>
+        </div>
+
+        <div class="mode-row">
+            <button class="chip active" onclick="app.setVisualMode('mist', this)">Nebel</button>
+            <button class="chip" onclick="app.setVisualMode('circle', this)">Kreis</button>
+            <button class="chip" onclick="app.setVisualMode('ripple', this)">Welle</button>
+            <button class="chip" onclick="app.setVisualMode('luma', this)">Licht</button>
+        </div>
+
+        <div id="bpm-selector-container" style="display: none; margin-bottom: 20px; animation: fadeIn 0.5s ease;">
+            <label style="margin-left: 5px; color: var(--accent-secondary);">Gefundene Takte (Tippen)</label>
+            <div id="bpm-selector" class="preset-scroll" style="flex-wrap: wrap; justify-content: flex-start; overflow: visible;">
+                <!-- Musical loop options will be injected here -->
+            </div>
+        </div>
+
+        <div style="display: flex; justify-content: center; margin-bottom: 20px;">
+            <button class="chip" id="mixer-toggle" onclick="app.toggleMixer()">Visuals anpassen</button>
+        </div>
+
+        <label style="margin-left: 5px;">Presets</label>
+        <div class="preset-scroll">
+            <button class="chip" onclick="app.loadPreset('p1', this)">5.5 : 5.5</button>
+            <button class="chip" onclick="app.loadPreset('p2', this)">4 : 4</button>
+            <button class="chip" onclick="app.loadPreset('p8', this)">5 : 5</button>
+            <button class="chip" onclick="app.loadPreset('p3', this)">4 : 7 : 8</button>
+            <button class="chip" onclick="app.loadPreset('p4', this)">5 : 5 : 5 : 5</button>
+            <button class="chip" onclick="app.loadPreset('p5', this)">6 : 6</button>
+            <button class="chip" onclick="app.loadPreset('p6', this)">7 : 7</button>
+            <button class="chip" onclick="app.loadPreset('p7', this)">8 : 8</button>
+        </div>
+
+        <button id="timing-toggle-btn" class="chip" onclick="app.toggleTiming()">Zeit-Details anzeigen</button>
+        <div class="controls-grid" id="timing-grid">
+            <div><label>Einatmen</label><input type="number" id="inTime" value="5.5" min="2" step="0.5"></div>
+            <div><label>Ausatmen</label><input type="number" id="outTime" value="5.5" min="2" step="0.5"></div>
+            <div><label>Halten (voll)</label><input type="number" id="holdFullTime" value="0" min="0" step="1"></div>
+            <div><label>Pause (leer)</label><input type="number" id="holdEmptyTime" value="0" min="0" step="1"></div>
+        </div>
+
+        <div class="controls-grid">
+            <div class="full-width-col">
+                <label>Audio / Musik</label>
+                <div style="display:flex; gap:10px; align-items:center;">
+                    <select id="soundSelect" style="flex:1;">
+                        <option value="none">Stille</option>
+                        <option value="gentle">Generator: Sanft</option>
+                        <option value="ambient">Generator: Ambient</option>
+                        <option value="bowl">Tibetische Klangschale (Synth)</option>
+                        <option value="bowl-high">Tibetische Klangschale (Hell)</option>
+                        <option value="bowl-mp3">Tibetische Klangschale (Original)</option>
+                        <option value="water">Fließendes Wasser</option>
+                        <option value="audio/accede_atem_track-5_5.mp3">Accede: Atem Track (5.5)</option>
+                        <option value="audio/altus_session3.mp3">Altus: Session 3 (5.5)</option>
+                        <option value="audio/yrrpheus_coherence.mp3">Yrrpheus: Coherence</option>
+                    </select>
+                    <input type="file" id="audioFileInput" accept="audio/*" style="display:none">
+                    <button class="btn" id="uploadBtn" style="width:auto; padding:10px 14px;">+</button>
+                </div>
+            </div>
+        </div>
+
+        <label>Sitzungsdauer (Minuten)</label>
+        <div class="preset-scroll" id="duration-scroll">
+            <button class="chip active" onclick="app.setDuration(0, this)">∞</button>
+            <button class="chip" onclick="app.setDuration(3, this)">3</button>
+            <button class="chip" onclick="app.setDuration(5, this)">5</button>
+            <button class="chip" onclick="app.setDuration(10, this)">10</button>
+            <button class="chip" onclick="app.setDuration(15, this)">15</button>
+            <button class="chip" onclick="app.setDuration(20, this)">20</button>
+            <button class="chip" onclick="app.setDuration(30, this)">30</button>
+            <input type="number" placeholder="Min" onchange="app.setDuration(this.value, null)">
+        </div>
+
+        <button class="btn" id="startBtn">Beginnen</button>
+    </div>
+
+    <button id="stop-float" class="btn stop-mode" style="display:none; position:fixed; left:50%; transform:translateX(-50%); bottom:26px; z-index:200; width:220px; box-shadow: 0 4px 15px rgba(0,0,0,0.3);">Beenden</button>
+    <button id="tap-float">♫ Takt tippen</button>
+
+    <button id="restore-ui-btn" aria-label="Menü öffnen">
+        <svg viewBox="0 0 24 24"><path d="M7.41 15.41L12 10.83l4.59 4.58L18 14l-6-6-6 6z"/></svg>
+    </button>
+
+    <div id="xy-pad-container">
+        <div id="xy-pad">
+            <div class="xy-label xy-tl">nebel</div><div class="xy-label xy-tr">kreis</div>
+            <div class="xy-label xy-ml">dunkel</div><div class="xy-label xy-mr">hell</div>
+            <div class="xy-label xy-bl">welle</div><div class="xy-label xy-br">licht</div>
+            <div id="xy-cursor" style="left: 0%; top: 0%;"></div>
+        </div>
+        
+        <button id="slider-toggle-btn" class="chip" style="margin-top: 20px; width: 100%; opacity: 0.9;" onclick="app.toggleSliders()">Einstellungen verbergen</button>
+
+        <div class="slider-group" id="viz-sliders" style="display: block;">
+            <label><span>Chaos / Varianz</span><span id="chaos-val">0%</span></label>
+            <input type="range" id="randomness-slider" min="0" max="1" step="0.01" value="0">
+            
+            <label><span>Intensität</span><span id="intensity-val">75%</span></label>
+            <input type="range" id="intensity-slider" min="0.1" max="1" step="0.01" value="0.75">
+            
+            <label><span>Geometrie-Punkte</span><span id="points-val">5</span></label>
+            <input type="range" id="points-slider" min="3" max="12" step="1" value="5">
+
+            <div style="margin-top: 20px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 15px;">
+                <label style="margin-bottom: 12px; opacity: 0.5;">Drift & Sync</label>
+                <button id="drift-btn" class="chip" style="width:100%; justify-content: space-between; display: flex;" onclick="app.toggleDrift()"><span>Auto-Drift</span><span id="drift-status" style="opacity:0.5">Aus</span></button>
+                <div id="drift-controls" style="display:none; margin-top:12px;">
+                    <label><span>Dauer: <span id="drift-val">4</span> <span id="drift-unit">Atemzüge</span> / Phase</span></label>
+                    <input type="range" id="drift-slider" min="1" max="12" step="1" value="4">
+                </div>
+                <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid rgba(255,255,255,0.1);">
+                    <button id="color-drift-btn" class="chip" style="width:100%; justify-content: space-between; display: flex;" onclick="app.toggleColorDrift()"><span>Farb-Drift</span><span id="color-drift-status" style="opacity:0.5">Aus</span></button>
+                    <div id="color-drift-controls" style="display:none; margin-top:12px;">
+                        <label><span>Dauer: <span id="color-drift-val">4</span> <span id="color-drift-unit">Atemzüge</span> / Farbe</span></label>
+                        <input type="range" id="color-drift-slider" min="1" max="12" step="1" value="4">
+                    </div>
+                </div>
+            </div>
+        </div>
+        <button class="btn" style="margin-top: 25px; padding: 12px; font-size: 1rem; background: rgba(255,255,255,0.1);" onclick="app.toggleMixer()">Schließen</button>
+    </div>
+    <style>@keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }</style>
+
+    <script>
+    /* --- OPTIMIZED SIMPLEX NOISE --- */
+    const GRAD3 = [[1,1],[-1,1],[1,-1],[-1,-1],[1,0],[-1,0],[1,0],[-1,0],[0,1],[0,-1],[0,1],[0,-1]];
+    class SimplexNoise { 
+        constructor() {
+            this.p = new Uint8Array(256);
+            for(let i=0;i<256;i++) this.p[i]=i;
+            for(let i=0;i<256;i++) {
+                let r = Math.random()*256|0, t = this.p[i];
+                this.p[i] = this.p[r]; this.p[r] = t;
+            }
+            this.perm = new Uint8Array(512);
+            for(let i=0;i<512;i++) this.perm[i] = this.p[i&255];
+        }
+        noise2D(x, y) {
+            const F2 = 0.5*(Math.sqrt(3.0)-1.0), G2 = (3.0-Math.sqrt(3.0))/6.0;
+            let s = (x+y)*F2, i = Math.floor(x+s), j = Math.floor(y+s);
+            let t = (i+j)*G2, X0 = i-t, Y0 = j-t, x0 = x-X0, y0 = y-Y0;
+            let i1 = x0>y0 ? 1 : 0, j1 = x0>y0 ? 0 : 1;
+            let x1 = x0 - i1 + G2, y1 = y0 - j1 + G2;
+            let x2 = x0 - 1.0 + 2.0*G2, y2 = y0 - 1.0 + 2.0*G2;
+            let ii = i&255, jj = j&255;
+            let gi0 = this.perm[ii+this.perm[jj]]%12, gi1 = this.perm[ii+i1+this.perm[jj+j1]]%12, gi2 = this.perm[ii+1+this.perm[jj+1]]%12;
+            let t0 = 0.5 - x0*x0 - y0*y0, n0 = t0<0 ? 0 : t0*t0 * (GRAD3[gi0][0]*x0 + GRAD3[gi0][1]*y0);
+            let t1 = 0.5 - x1*x1 - y1*y1, n1 = t1<0 ? 0 : t1*t1 * (GRAD3[gi1][0]*x1 + GRAD3[gi1][1]*y1);
+            let t2 = 0.5 - x2*x2 - y2*y2, n2 = t2<0 ? 0 : t2*t2 * (GRAD3[gi2][0]*x2 + GRAD3[gi2][1]*y2);
+            return 70.0 * (n0 + n1 + n2);
+        }
+    }
+
+    const THEME_PALETTE = [
+        { r:14, g:11, b:12,  ar:166, ag:89, ab:89  }, { r:7,  g:16, b:18,  ar:93,  ag:122, ab:102 },
+        { r:7,  g:7,  b:9,   ar:94,  ag:114, ab:145 }, { r:11, g:16, b:38,  ar:107, ag:140, ab:150 },
+        { r:18, g:12, b:8,   ar:186, ag:150, ab:85  }, { r:18, g:18, b:18,  ar:207, ag:216, ab:220 }
+    ];
+
+    /* --- OPTIMIZED VISUAL ENGINE --- */
+    class BreathVisuals {
+        constructor(canvas) {
+            this.canvas = canvas; this.ctx = this.canvas.getContext('2d', { alpha: false, desynchronized: true });
+            this.noise = new SimplexNoise(); 
+            this.dpr = Math.min(window.devicePixelRatio || 1, 2);
+            this.width = 0; this.height = 0; this.centerX = 0; this.centerY = 0;
+            this.weights = { mist: 1, circle: 0, ripple: 0, luma: 0 }; 
+            this.breathValue = 0.5; this.colors = { r:138, g:138, b:138 };
+            this.bgR = 10; this.bgG = 10; this.bgB = 10;
+            this.randomness = 0; this.intensity = 0.75; this.lumaPoints = 5; 
+            this.tapPulse = 0; this.phase = 'hold-empty'; this.turnSignal = 0;
+            
+            // Memory Optimization: Pre-allocate particles (Structure of Arrays)
+            this.pCount = 500;
+            this.p_x = new Float32Array(this.pCount); this.p_y = new Float32Array(this.pCount);
+            this.p_vx = new Float32Array(this.pCount); this.p_vy = new Float32Array(this.pCount);
+            this.p_life = new Float32Array(this.pCount); this.p_maxLife = new Float32Array(this.pCount);
+            this.p_size = new Float32Array(this.pCount); this.p_baseAlpha = new Float32Array(this.pCount);
+            
+            this.particleSprite = null; this.initParticles = false;
+            this.PI2 = Math.PI * 2;
+            
+            window.addEventListener('resize', () => this.resize(), { passive: true }); 
+            this.resize(); 
+            this.animate();
+        }
+
+        updateThemeColors() {
+            const style = getComputedStyle(document.body);
+            const hex = (style.getPropertyValue('--accent-primary') || '#8a8a8a').trim().replace('#', '');
+            if (hex.length === 6) {
+                const bi = parseInt(hex, 16); this.colors = { r: (bi >> 16) & 255, g: (bi >> 8) & 255, b: bi & 255 };
+            }
+            let bgStr = style.getPropertyValue('--bg-color').trim();
+            if (bgStr.startsWith('#')) {
+                this.bgR = parseInt(bgStr.slice(1,3),16); this.bgG = parseInt(bgStr.slice(3,5),16); this.bgB = parseInt(bgStr.slice(5,7),16);
+            } else if (bgStr.startsWith('rgb')) {
+                const rgb = bgStr.match(/\d+/g);
+                if(rgb) { this.bgR = parseInt(rgb[0]); this.bgG = parseInt(rgb[1]); this.bgB = parseInt(rgb[2]); }
+            }
+            this.generateSprite();
+        }
+
+        generateSprite() {
+            this.particleSprite = document.createElement('canvas');
+            const s = 64; this.particleSprite.width = s; this.particleSprite.height = s;
+            const ctx = this.particleSprite.getContext('2d');
+            const g = ctx.createRadialGradient(s/2, s/2, 0, s/2, s/2, s/2);
+            g.addColorStop(0, `rgba(${this.colors.r},${this.colors.g},${this.colors.b},1)`);
+            g.addColorStop(1, `rgba(${this.colors.r},${this.colors.g},${this.colors.b},0)`);
+            ctx.fillStyle = g; ctx.fillRect(0, 0, s, s);
+        }
+
+        resize() {
+            const rect = this.canvas.parentElement.getBoundingClientRect();
+            this.width = rect.width; this.height = rect.height;
+            this.canvas.width = this.width * this.dpr; this.canvas.height = this.height * this.dpr;
+            this.canvas.style.width = this.width + 'px'; this.canvas.style.height = this.height + 'px';
+            this.ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+            this.centerX = this.width / 2; this.centerY = this.height / 2;
+            this.updateThemeColors(); 
+            this.initParticles = false;
+        }
+
+        setBreathState(v, p) { 
+            if (p === 'out' && this.phase !== 'out') this.turnSignal = 1.0;
+            this.breathValue = v; this.phase = p;
+        }
+        
+        triggerPulse(intensity = 1.0) { this.tapPulse = Math.max(this.tapPulse, intensity); }
+        setRandomness(v) { this.randomness = v; }
+        setIntensity(v) { this.intensity = v; }
+        setLumaPoints(v) { this.lumaPoints = v; }
+
+        animate() {
+            requestAnimationFrame(() => this.animate());
+            
+            // Decay signals
+            if (this.turnSignal > 0) this.turnSignal *= 0.92;
+            if (this.tapPulse > 0.01) this.tapPulse *= 0.85; else this.tapPulse = 0;
+
+            const safeR = this.bgR || 10, safeG = this.bgG || 10, safeB = this.bgB || 10;
+            // Adaptive fade trail
+            let alpha = 0.05; 
+            if (this.weights.mist > 0.5) alpha = 0.12;
+            
+            this.ctx.globalCompositeOperation = 'source-over';
+            this.ctx.fillStyle = `rgba(${safeR}, ${safeG}, ${safeB}, ${alpha})`;
+            this.ctx.fillRect(0, 0, this.width, this.height);
+            this.ctx.globalCompositeOperation = 'lighter';
+
+            if (this.weights.mist > 0.01) this.renderMist(this.weights.mist);
+            if (this.weights.circle > 0.01) { this.ctx.save(); this.ctx.globalAlpha = this.weights.circle; this.renderCircle(); this.ctx.restore(); }
+            if (this.weights.ripple > 0.01) { this.ctx.save(); this.ctx.globalAlpha = this.weights.ripple; this.renderRipple(); this.ctx.restore(); }
+            if (this.weights.luma > 0.01) { this.ctx.save(); this.ctx.globalAlpha = this.weights.luma; this.renderLuma(); this.ctx.restore(); }
+            
+            // Tap Flash
+            if (this.tapPulse > 0.01) {
+                const maxDim = Math.max(this.width, this.height);
+                const generalGlowAmount = 1.0 - this.weights.mist;
+                const g = this.ctx.createRadialGradient(this.centerX, this.centerY, 0, this.centerX, this.centerY, maxDim * 0.15);
+                const alpha = this.tapPulse * 0.3 * generalGlowAmount * (0.4 + 0.6 * this.breathValue);
+                if (alpha > 0.001) g.addColorStop(0, `rgba(255, 255, 255, ${alpha})`);
+                g.addColorStop(1, "rgba(255, 255, 255, 0)");
+                this.ctx.fillStyle = g; this.ctx.fillRect(0, 0, this.width, this.height);
+            }
+        }
+
+        resetParticle(i) {
+            this.p_x[i] = Math.random() * this.width; this.p_y[i] = Math.random() * this.height;
+            this.p_vx[i] = 0; this.p_vy[i] = 0;
+            this.p_life[i] = 0; this.p_maxLife[i] = 150 + Math.random() * 250;
+            this.p_size[i] = (4 + Math.random() * 24) * (this.dpr * 0.6);
+            this.p_baseAlpha[i] = 0.05 + Math.random() * 0.25;
+        }
+
+        renderMist(layerOpacity) {
+            if (!this.initParticles) { for (let i = 0; i < this.pCount; i++) this.resetParticle(i); this.initParticles = true; }
+            
+            const time = Date.now() * 0.0003;
+            const maxR = Math.min(this.width, this.height) * 0.4;
+            const targetR = 20 + (maxR * this.breathValue);
+            const noiseScale = 0.0015 + (this.randomness * 0.02);
+            
+            // Optimization: Calculate invariant physics outside loop
+            let turbulence = 0.03 + (this.randomness * 0.25) + (this.turnSignal * 0.15);
+            if (this.phase === 'hold-full') turbulence += 0.02;
+            
+            let attraction = 0.0005;
+            if (this.phase === 'out') attraction = 0.0008;
+            else if (this.phase === 'hold-full') attraction = 0.001;
+
+            const activeCount = Math.floor(this.pCount * (0.1 + this.intensity * 0.9));
+            const pulseBoost = this.tapPulse * 0.4 * (0.4 + 0.6 * this.breathValue);
+
+            for (let i = 0; i < activeCount; i++) {
+                if (++this.p_life[i] > this.p_maxLife[i]) this.resetParticle(i);
+
+                const n = this.noise.noise2D(this.p_x[i] * noiseScale, this.p_y[i] * noiseScale + time);
+                const angle = n * 12.56;
+                this.p_vx[i] += Math.cos(angle) * turbulence;
+                this.p_vy[i] += Math.sin(angle) * turbulence;
+
+                const dx = this.p_x[i] - this.centerX;
+                const dy = this.p_y[i] - this.centerY;
+                const dist = Math.sqrt(dx*dx + dy*dy);
+                
+                if (dist > 0.1) {
+                    const force = (targetR - dist) * attraction + (this.phase === 'in' && dist < targetR * 0.5 ? 0.002 : 0);
+                    this.p_vx[i] += (dx/dist) * force;
+                    this.p_vy[i] += (dy/dist) * force;
+                }
+
+                this.p_x[i] += (this.p_vx[i] *= 0.92);
+                this.p_y[i] += (this.p_vy[i] *= 0.92);
+
+                const lifeProg = this.p_life[i] / this.p_maxLife[i];
+                let alphaMult = (0.5 + this.breathValue * 0.5) * (this.phase === 'out' ? 0.8 : 1);
+                const alpha = Math.sin(lifeProg * Math.PI) * this.p_baseAlpha[i] * alphaMult * layerOpacity * (0.5 + this.intensity * 0.5);
+                const size = this.p_size[i] * (0.8 + this.breathValue * 0.8) * (1 + this.tapPulse * 0.4);
+
+                this.ctx.globalAlpha = Math.min(1, alpha + pulseBoost);
+                if(this.particleSprite) this.ctx.drawImage(this.particleSprite, this.p_x[i] - size/2, this.p_y[i] - size/2, size, size);
+            }
+            this.ctx.globalAlpha = 1.0;
+        }
+
+        renderCircle() {
+            const baseScale = Math.min(this.width, this.height) * 0.3;
+            const rBase = (baseScale * (0.4 + this.breathValue * 0.6)) * (1 + this.tapPulse * 0.04);
+            const time = Date.now() * (0.0003 + this.randomness * 0.0002);
+            const distortion = (20 * this.breathValue + (this.randomness * 5)) * this.intensity;
+
+            this.ctx.beginPath();
+            for(let i=0; i<=100; i++) {
+                const a = (i/100) * this.PI2;
+                const r = rBase + this.noise.noise2D(Math.cos(a)+time, Math.sin(a)) * distortion;
+                const x = this.centerX + Math.cos(a)*r, y = this.centerY + Math.sin(a)*r;
+                if(i===0) this.ctx.moveTo(x,y); else this.ctx.lineTo(x,y);
+            }
+            this.ctx.closePath();
+            
+            this.ctx.strokeStyle = `rgba(${this.colors.r},${this.colors.g},${this.colors.b},${(0.3 + this.tapPulse * 0.8 * (0.4 + 0.6 * this.breathValue)) * this.intensity})`;
+            this.ctx.lineWidth = 1.5 + (this.tapPulse * 1.5);
+            this.ctx.stroke();
+
+            const g = this.ctx.createRadialGradient(this.centerX, this.centerY, 0, this.centerX, this.centerY, rBase*1.2);
+            g.addColorStop(0, `rgba(${this.colors.r},${this.colors.g},${this.colors.b},${(0.3 + this.breathValue * 0.2 + this.tapPulse * 0.2 * (0.4 + 0.6 * this.breathValue)) * this.intensity})`);
+            g.addColorStop(1, "rgba(0,0,0,0)");
+            this.ctx.fillStyle = g; this.ctx.fill();
+        }
+
+        renderRipple() {
+            const t = Date.now() * (0.0002 + this.randomness * 0.0001);
+            const count = Math.max(3, Math.floor(8 * this.intensity));
+            const maxD = Math.min(this.width, this.height);
+            const segments = 60 + Math.floor(this.randomness * 40);
+
+            for(let i=0; i<count; i++) {
+                const baseR = (maxD * 0.4) * ((i+1)/8);
+                const expansion = baseR * ((1.0 - (0.2 + this.randomness*0.15)) + this.breathValue * (0.2 + this.randomness*0.15));
+                const wobble = (this.randomness * this.randomness) * (10 + baseR * 0.2);
+                
+                this.ctx.beginPath();
+                for(let s=0; s<=segments; s++) {
+                    const angle = (s / segments) * this.PI2;
+                    const r = Math.max(0, expansion + this.noise.noise2D(Math.cos(angle) + i*0.5, Math.sin(angle) + t) * wobble * (0.3 + this.breathValue*0.7)) * (1 + this.tapPulse*0.02);
+                    const x = this.centerX + Math.cos(angle)*r, y = this.centerY + Math.sin(angle)*r;
+                    if(s===0) this.ctx.moveTo(x, y); else this.ctx.lineTo(x, y);
+                }
+                this.ctx.closePath();
+                const alpha = Math.min(1, ((0.1 + this.breathValue * 0.1) * this.intensity) + this.tapPulse * 0.4 * (0.4 + 0.6 * this.breathValue));
+                this.ctx.strokeStyle = `rgba(${this.colors.r},${this.colors.g},${this.colors.b},${alpha})`;
+                this.ctx.lineWidth = 1.0 + this.tapPulse * 1.5;
+                this.ctx.stroke();
+            }
+        }
+
+        renderLuma() {
+            const t = Date.now() * (0.0004 + this.randomness * 0.001);
+            const baseR = Math.min(this.width, this.height) * 0.20;
+            const innerR = baseR * (0.5 + this.breathValue * 0.8) * (1 + Math.sin(t)*0.05) * (1 + this.tapPulse * 0.08);
+            
+            const g1 = this.ctx.createRadialGradient(this.centerX, this.centerY, 0, this.centerX, this.centerY, innerR);
+            const alpha = (0.05 + (this.breathValue * 0.1) + this.tapPulse * 0.15 * (0.4 + 0.6 * this.breathValue)) * this.intensity;
+            g1.addColorStop(0, `rgba(${this.colors.r},${this.colors.g},${this.colors.b},${alpha})`);
+            g1.addColorStop(1, "rgba(0,0,0,0)");
+            
+            this.ctx.beginPath(); this.ctx.arc(this.centerX, this.centerY, innerR, 0, this.PI2);
+            this.ctx.fillStyle = g1; this.ctx.fill();
+
+            // Mandala
+            this.ctx.save(); this.ctx.translate(this.centerX, this.centerY); this.ctx.rotate(t * 0.15);
+            const petals = this.lumaPoints;
+            const mInnerR = Math.min(this.width, this.height) * 0.1;
+            const expansion = this.breathValue * (Math.min(this.width, this.height) * 0.2);
+            
+            for (let i = 0; i < petals; i++) {
+                const angle = (i / petals) * this.PI2 + (t * 0.5);
+                this.ctx.beginPath(); this.ctx.rotate(this.PI2 / petals);
+                for (let a = 0; a < this.PI2; a += 0.1) {
+                    const r = (mInnerR + expansion) + Math.sin(a*5 + t*2) * (10*this.breathValue + this.randomness*30 + this.tapPulse*10);
+                    const x = Math.cos(a) * r, y = Math.sin(a) * (r * 0.4);
+                    if (a === 0) this.ctx.moveTo(x, y); else this.ctx.lineTo(x, y);
+                }
+                const lumaAlpha = Math.min(1, ((0.1 + this.breathValue*0.2) * this.intensity) + this.tapPulse*0.4 * (0.4 + 0.6 * this.breathValue));
+                this.ctx.strokeStyle = `rgba(${this.colors.r},${this.colors.g},${this.colors.b},${lumaAlpha})`;
+                this.ctx.lineWidth = 1.5; this.ctx.stroke();
+            }
+            this.ctx.restore();
+        }
+    }
+
+    /* --- AUDIO ENGINE --- */
+    class GentleAudio {
+        constructor() { 
+            this.ctx = null; this.nodes = []; this.masterGain = null;
+            this.volume = parseFloat(localStorage.getItem('atem-volume')) || 0.3;
+            this.audioEl = new Audio(); this.audioEl.crossOrigin = "anonymous"; this.audioEl.loop = true;
+            this.buffers = {}; this.currentType = 'none'; this.genNodes = {};
+        }
+        async init() {
+            const AC = window.AudioContext || window.webkitAudioContext;
+            if (!this.ctx && AC) { 
+                // iOS / iPad unlock
+                this.unlockAudio = () => {
+                    if (this.ctx.state === 'suspended') {
+                        this.ctx.resume();
+                        const buffer = this.ctx.createBuffer(1, 1, 22050);
+                        const source = this.ctx.createBufferSource(); source.buffer = buffer; source.connect(this.ctx.destination); source.start();
+                        source.onended = () => { document.removeEventListener('touchstart', this.unlockAudio); document.removeEventListener('mousedown', this.unlockAudio); }
+                    }
+                };
+                document.addEventListener('touchstart', this.unlockAudio); document.addEventListener('mousedown', this.unlockAudio);
+                this.ctx = new AC();
+                this.masterGain = this.ctx.createGain(); this.masterGain.gain.value = this.volume;
+                this.masterGain.connect(this.ctx.destination);
+                
+                this.reverbNode = this.ctx.createConvolver();
+                this.reverbNode.buffer = this.createReverbBuffer();
+                this.reverbNode.connect(this.masterGain);
+                
+                this.musicGain = this.ctx.createGain(); this.musicGain.gain.value = 1.0;
+                this.musicGain.connect(this.masterGain);
+                this.mediaSource = this.ctx.createMediaElementSource(this.audioEl);
+                this.mediaSource.connect(this.musicGain);
+            }
+            if (this.ctx && this.ctx.state === 'suspended') await this.ctx.resume();
+        }
+        setVolume(v) {
+            this.volume = parseFloat(v); localStorage.setItem('atem-volume', this.volume);
+            if(this.masterGain) this.masterGain.gain.setTargetAtTime(this.volume, this.ctx.currentTime, 0.1);
+        }
+        createReverbBuffer() {
+            const len = this.ctx.sampleRate * 3.0;
+            const buf = this.ctx.createBuffer(2, len, this.ctx.sampleRate);
+            for(let c=0;c<2;c++){
+                const d = buf.getChannelData(c); for(let i=0;i<len;i++) d[i] = (Math.random()*2-1)*Math.pow(1-i/len, 3);
+            }
+            return buf;
+        }
+        async loadBuffer(key, url) {
+            if(this.buffers[key]) return;
+            try {
+                // Debugging: Direkter Versuch ohne automatischen "audio/" Prefix-Fallback, 
+                // da die Optionen im <select> bereits "audio/..." enthalten.
+                const r = await fetch(url);
+                if(!r.ok) {
+                    console.error(`Audio-Fehler: Datei nicht gefunden unter ${url}`);
+                    return;
+                }
+                const ab = await r.arrayBuffer();
+                this.buffers[key] = await this.ctx.decodeAudioData(ab);
+                console.log(`Audio geladen: ${key}`);
+            } catch(e) {
+                console.error(`Decoding-Fehler bei ${key}:`, e);
+            }
+        }
+        updateGenerator(breathVal) {
+            if (!this.ctx || (this.currentType !== 'gentle' && this.currentType !== 'ambient')) return;
+            const t = this.ctx.currentTime;
+            if (this.currentType === 'gentle') {
+                if(this.genNodes.gain) this.genNodes.gain.gain.setTargetAtTime(0.05 + (breathVal * 0.15), t, 0.2);
+                if(this.genNodes.filter) this.genNodes.filter.frequency.setTargetAtTime(800 + (breathVal * 700), t, 0.2);
+            }else {
+                if(this.genNodes.filter) this.genNodes.filter.frequency.setTargetAtTime(60 + (breathVal * 220), t, 0.2);
+                if(this.genNodes.gain) this.genNodes.gain.gain.setTargetAtTime(0.08 + (breathVal * 0.06), t, 0.2);
+            }
+        }
+        triggerImpulse(pType) {
+            if(!this.ctx) return;
+            const t = this.ctx.currentTime;
+            const osc = this.ctx.createOscillator(); const g = this.ctx.createGain();
+            osc.connect(g); g.connect(this.masterGain); g.connect(this.reverbNode);
+            osc.frequency.value = this.currentType === 'gentle' ? (pType==='in'?698.46:523.25) : (pType==='in'?392:196);
+            g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.2, t+0.02); g.gain.exponentialRampToValueAtTime(0.001, t+2.5);
+            osc.start(t); osc.stop(t+2.5);
+            osc.onended = () => { osc.disconnect(); g.disconnect(); };
+        }
+        triggerBowl(st) {
+            if(!this.buffers['bowl'] || !this.ctx) return;
+            const s = this.ctx.createBufferSource(); s.buffer = this.buffers['bowl']; s.detune.value = st * 100;
+            const g = this.ctx.createGain(); g.gain.value = 0.6;
+            s.connect(g); g.connect(this.masterGain);
+            s.start(0); s.onended = () => { s.disconnect(); g.disconnect(); };
+        }
+
+        async play(type) {
+            if (this.ctx && this.ctx.state === 'suspended') await this.ctx.resume();
+
+            this.stop(); this.currentType = type;
+            if (!this.ctx) await this.init();
+            if (type === 'none') return;
+
+            if (type === 'bowl-mp3') { await this.loadBuffer('bowl', 'audio/e-flat-tibetan-singing-bowl-struck-38746.mp3'); return; }
+            if (type === 'bowl' || type === 'bowl-high') { return; } // Sound is triggered from loop, not here.
+            if (type === 'water') {
+                await this.loadBuffer('water', 'audio/flowing-water-loop-1-183953.mp3');
+                if(!this.buffers['water']) return;
+                const s = this.ctx.createBufferSource(); s.buffer = this.buffers['water']; s.loop = true;
+                const g = this.ctx.createGain(); g.gain.value = 0; g.gain.linearRampToValueAtTime(0.8, this.ctx.currentTime + 2.0);
+                s.connect(g); g.connect(this.masterGain); s.start(0);
+                this.nodes.push({stop:()=>s.stop(), disconnect:()=>{s.disconnect();g.disconnect();}});
+                return;
+            }
+            if (type === 'gentle' || type === 'ambient') {
+                const gainNode = this.ctx.createGain(); gainNode.connect(this.masterGain);
+                if (type === 'gentle') gainNode.connect(this.reverbNode);
+                
+                gainNode.gain.value = 0; gainNode.gain.linearRampToValueAtTime(0.1, this.ctx.currentTime + 2.0);
+                this.nodes.push(gainNode); this.genNodes = { gain: gainNode, oscs: [] };
+                
+                let targetNode = gainNode;
+                if (type === 'ambient' || type === 'gentle') {
+                    const f = this.ctx.createBiquadFilter(); f.type = 'lowpass'; 
+                    f.frequency.value = type === 'gentle' ? 800 : 80;
+                    f.connect(gainNode); this.genNodes.filter = f; targetNode = f;
+                }
+
+                if (type === 'gentle') {
+                    const freqs = [174.61, 261.63, 349.23];
+                    freqs.forEach(f => {
+                        const osc1 = this.ctx.createOscillator(); osc1.type = 'sawtooth'; osc1.frequency.value = f; osc1.detune.value = -7;
+                        osc1.connect(targetNode); osc1.start(); this.nodes.push(osc1); this.genNodes.oscs.push(osc1);
+                        const osc2 = this.ctx.createOscillator(); osc2.type = 'sawtooth'; osc2.frequency.value = f; osc2.detune.value = 7;
+                        osc2.connect(targetNode); osc2.start(); this.nodes.push(osc2); this.genNodes.oscs.push(osc2);
+                    });
+                } else {
+                    const config = { freq: [65.41, 98.00], type: 'triangle' };
+                    config.freq.forEach((f, i) => {
+                        const osc = this.ctx.createOscillator(); osc.type = i===0 ? 'sine' : config.type;
+                        osc.frequency.value = f; osc.connect(targetNode); osc.start();
+                        this.nodes.push(osc); this.genNodes.oscs.push(osc);
+                    });
+                }
+            } else {
+                try { this.audioEl.src = type; this.audioEl.currentTime = 0; await this.audioEl.play(); } catch(e){}
+            }
+        }
+        triggerBowlSynth(detune = 0) {
+            if (!this.ctx) return;
+            const t = this.ctx.currentTime;
+            const baseFreq = 360 * Math.pow(2, detune / 12);
+            const partials = [1, 2, 3, 4.2, 5.8];
+            const attackTime = 0.02;
+            const releaseTime = 7.0;
+
+            partials.forEach((ratio, index) => {
+                const freq = baseFreq * ratio;
+                const gain = 0.1 / (1 + index * 0.4);
+
+                const osc = this.ctx.createOscillator();
+                const envelope = this.ctx.createGain();
+
+                osc.frequency.value = freq;
+                osc.type = 'sine';
+                osc.connect(envelope); envelope.connect(this.masterGain); envelope.connect(this.reverbNode);
+
+                envelope.gain.setValueAtTime(0, t);
+                envelope.gain.linearRampToValueAtTime(gain, t + attackTime);
+                envelope.gain.exponentialRampToValueAtTime(0.0001, t + attackTime + releaseTime);
+
+                const stopTime = t + attackTime + releaseTime + 0.2;
+                osc.start(t);
+                osc.stop(stopTime);
+            });
+        }
+        stop() {
+            this.nodes.forEach(n => { try{if(n.stop)n.stop();n.disconnect();}catch(e){} });
+            this.nodes = []; this.audioEl.pause();
+        }
+    }
+
+    /* --- APPLICATION LOGIC --- */
+    const quotes = [
+        { id: 1, quote: "Stellt euch euren Atem als den Weg vor, der die Energie um euch herum aufnimmt und sie mit eurer eigenen Energie verbindet.", source: "Nancy N. Chen" },
+        { id: 4, quote: "Das Wesentliche im Qi Gong ist, das Herz nicht allzu sehr in den Atem zu legen, da der Atem direkt vom Bewusstsein kommt.", source: "Meister Lü Dsu" },
+        { id: 9, quote: "Wenn du atmest, ist es die Natur, die dich atmet. In der tiefen Praxis können Geist und Körper leer werden.", source: "Ken Cohen" },
+        { id: 14, quote: "Wenn die Stille ihren Höhepunkt erreicht hat, erzeugt sie ganz von selbst die Bewegung der Energie.", source: "Meister Zhi-Chang Li" },
+        { id: 19, quote: "Der Atem ist die Verbindung, der Leim zwischen Körper, Geist und Seele.", source: "Mantak Chia" },
+        { id: 28, quote: "Lasse dein Gewahrsein wie einen weiten Ozean sein, in dem die Wellen der Gedanken von selbst zur Ruhe kommen.", source: "Namkhai Norbu" },
+        { id: 31, quote: "Das Kultivieren der Stille lässt den Geist klar werden wie einen gereinigten Spiegel.", source: "Ulli Olvedi" }
+    ];
+
+    class BreathApp {
+        constructor() {
+            this.viz = new BreathVisuals(document.getElementById('viz-canvas'));
+            this.audio = new GentleAudio();
+            this.isRunning = false; this.abortCtrl = null; this.sessionDuration = 0; this.startTime = 0;
+            
+            this.draggingXY = false;
+            this.tapTimes = [];
+            this.isTapperActive = false;
+            this.tapperTimeout = null;
+            this.metronomeTimeout = null;
+            this.musicalLoopOptions = [];
+            this.msPerBeat = 0;
+
+            // Drift State
+            this.evolveActive = false; this.evolveCycles = 4; this.evolveProgress = 0;
+            this.xyDriftBounds = {x1:0, x2:1, y1:0, y2:1};
+            this.currentX = 0; this.currentY = 0;
+            this.colorDriftActive = false; this.colorDriftDirection = 1; this.colorDriftCycles = 4;
+            this.currentColorValue = 0; this.currentPreset = "";
+            
+            // Web Worker for background timing
+            const blob = new Blob(["let t;self.onmessage=e=>{if(e.data=='start'){if(t)clearInterval(t);t=setInterval(()=>postMessage('t'),25)}else{clearInterval(t)}}"], {type: 'application/javascript'});
+            this.timerWorker = new Worker(URL.createObjectURL(blob));
+
+            try { window.focus(); document.body.focus(); } catch(e) {}
+            document.addEventListener('keydown', (e) => {
+                if (e.code === 'Space' && !e.repeat) {
+                    const activeEl = document.activeElement;
+                    if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'SELECT' || activeEl.tagName === 'BUTTON' || activeEl.isContentEditable)) {
+                        return;
+                    }
+                    e.preventDefault();
+                    if (document.getElementById('summary-modal').classList.contains('visible')) {
+                        this.closeSummary();
+                    } else {
+                        this.toggle();
+                    }
+                }
+            });
+
+            this.setupUI(); this.randomizeVisuals();
+            this.loadPreset('p1', document.querySelector(`.preset-scroll .chip:first-child`));
+            this.setDuration(0, null);
+            this.updateInfoPanel(); // Ensure initial preset display is correct
+        }
+        
+        startIdleLoop() {
+            let last = Date.now();
+            const loop = () => {
+                if (!this.isRunning) {
+                    const now = Date.now();
+                    this.updateDrift((now - last) / 1000);
+                    last = now;
+                    requestAnimationFrame(loop);
+                }
+            };
+            loop();
+        }
+
+        setupUI() {
+            const getEl = id => document.getElementById(id);
+            getEl('startBtn').addEventListener('click', () => this.toggle());
+            
+            // Firefox/Touch Fix: Use pointerdown for UI toggles
+            const handle = document.querySelector('.handle');
+            if(handle) handle.addEventListener('pointerdown', (e) => { e.stopPropagation(); this.toggleUI(); });
+            getEl('restore-ui-btn').addEventListener('pointerdown', (e) => { e.stopPropagation(); this.toggleUI(); });
+
+            getEl('stop-float').addEventListener('click', () => this.stop());
+            getEl('instruction').addEventListener('click', (e) => { e.stopPropagation(); if (!this.isRunning) this.start(); });
+            getEl('soundSelect').addEventListener('change', (e) => {
+                if(e.target.value.includes('yrrpheus')) this.loadPreset('p8', document.querySelector("button[onclick*='p8']"));
+                if(this.isRunning) this.audio.play(e.target.value);
+            });
+            
+            getEl('uploadBtn').addEventListener('click', () => getEl('audioFileInput').click());
+            getEl('audioFileInput').addEventListener('change', (e) => {
+                if (e.target.files && e.target.files[0]) {
+                    const file = e.target.files[0];
+                    const url = URL.createObjectURL(file);
+                    const select = getEl('soundSelect');
+                    const option = document.createElement('option');
+                    option.value = url; option.text = "Eigene: " + file.name;
+                    select.add(option); select.value = url;
+                    if (this.isRunning) this.audio.play(url);
+                }
+            });
+            
+            // Vol / Color
+            getEl('vol-slider').addEventListener('input', (e) => {
+                const v = parseFloat(e.target.value); this.audio.setVolume(v);
+                getEl('vol-icon').style.opacity = v <= 0.01 ? 0.5 : 0.9;
+            }, { passive: true });
+            
+            const colorSlider = getEl('color-slider');
+            colorSlider.addEventListener('input', (e) => {
+                this.currentColorValue = parseFloat(e.target.value); this.updateThemeColor(this.currentColorValue);
+            });
+            const colorStops = THEME_PALETTE.map(p => `rgb(${p.ar}, ${p.ag}, ${p.ab})`).join(', ');
+            colorSlider.style.setProperty('--color-slider-gradient', `linear-gradient(to right, ${colorStops})`);
+
+            // Sliders & Drifters
+            const bindSlider = (id, key, dispId) => {
+                getEl(id).addEventListener('input', (e) => {
+                    const v = parseFloat(e.target.value);
+                    if(key.startsWith('viz.')) this.viz[key.split('.')[1]](v);
+                    else this[key] = v;
+                    if(dispId) getEl(dispId).innerText = (v % 1 === 0 ? v : Math.round(v*100)+'%');
+                });
+            };
+            bindSlider('randomness-slider', 'viz.setRandomness', 'chaos-val');
+            bindSlider('intensity-slider', 'viz.setIntensity', 'intensity-val');
+            bindSlider('points-slider', 'viz.setLumaPoints', 'points-val');
+            bindSlider('drift-slider', 'evolveCycles', 'drift-val');
+            bindSlider('color-drift-slider', 'colorDriftCycles', 'color-drift-val');
+
+            // XY Pad
+            this.padElement = getEl('xy-pad');
+            this.padElement.addEventListener('pointerdown', (e) => {
+                e.preventDefault();
+                this.padElement.setPointerCapture(e.pointerId);
+                this.draggingXY = true;
+                this.updateXYFromEvent(e);
+            });
+            this.padElement.addEventListener('pointermove', (e) => {
+                if (this.draggingXY) {
+                    e.preventDefault();
+                    this.updateXYFromEvent(e);
+                }
+            });
+            const endDrag = () => {
+                this.draggingXY = false;
+            };
+            this.padElement.addEventListener('pointerup', endDrag);
+            this.padElement.addEventListener('pointercancel', endDrag);
+            this.padElement.addEventListener('pointerleave', endDrag);
+
+            // Tap Sync
+            const tapBtn = getEl('tap-float');
+            tapBtn.addEventListener('pointerdown', (e) => { // MODIFIED for Musical Loop Selector
+                e.preventDefault();
+
+                if (this.isTapperActive) {
+                    this.resetTapperAndLoadDefault();
+                    return;
+                }
+
+                this.viz.triggerPulse(1.0);
+                const now = Date.now();
+                if (this.tapperTimeout) clearTimeout(this.tapperTimeout);
+
+                if (this.tapTimes.length > 0 && now - this.tapTimes[this.tapTimes.length - 1] > 2000) {
+                    this.tapTimes = [];
+                }
+                this.tapTimes.push(now);
+                if (this.tapTimes.length > 5) this.tapTimes.shift();
+
+                if (this.tapTimes.length >= 3) {
+                    const intervals = [];
+                    for (let i = 1; i < this.tapTimes.length; i++) {
+                        intervals.push(this.tapTimes[i] - this.tapTimes[i-1]);
+                    }
+                    const avgInterval = intervals.reduce((a, b) => a + b, 0) / intervals.length;
+
+                    if (avgInterval > 0) {
+                        const bpm = Math.round(60000 / avgInterval);
+                        this.msPerBeat = 60000 / bpm;
+                        const barDurationSeconds = (this.msPerBeat * 4) / 1000;
+                        
+                        const multipliers = [1, 2, 4, 8, 16];
+                        const minLoopDur = 4.0; // 2s per phase, matches input min="2"
+                        const maxLoopDur = 20.0; // 10s per phase
+                        this.musicalLoopOptions = multipliers.map(m => {
+                            const totalDuration = barDurationSeconds * m;
+                            return { multiplier: m, duration: totalDuration };
+                        }).filter(opt => opt.duration >= minLoopDur && opt.duration <= maxLoopDur);
+
+                        if (this.musicalLoopOptions.length > 0) {
+                            const selector = getEl('bpm-selector');
+                            selector.innerHTML = '';
+                            this.musicalLoopOptions.forEach(opt => {
+                                const takte = opt.multiplier === 1 ? 'Takt' : 'Takte';
+                                const chip = document.createElement('button');
+                                chip.className = 'chip';
+                                chip.innerText = `${opt.multiplier} ${takte} (${opt.duration.toFixed(1)}s)`;
+                                chip.onclick = () => this.setMusicalLoop(opt.multiplier, opt.duration, chip);
+                                selector.appendChild(chip);
+                            });
+                            getEl('bpm-selector-container').style.display = 'block';
+
+                            let bestOption = this.musicalLoopOptions.reduce((prev, curr) => 
+                                (Math.abs(curr.duration - 11) < Math.abs(prev.duration - 11)) ? curr : prev
+                            );
+                            const chips = Array.from(selector.getElementsByTagName('button'));
+                            const bestChip = chips.find(c => c.innerText.startsWith(`${bestOption.multiplier} `));
+                            if (bestChip) {
+                                this.setMusicalLoop(bestOption.multiplier, bestOption.duration, bestChip);
+                            }
+
+                            tapBtn.innerText = `♫ ${bpm} BPM`;
+                            tapBtn.classList.add('active');
+                            this.startMetronome();
+
+                            this.tapperTimeout = setTimeout(() => {
+                                this.isTapperActive = true;
+                            }, 2000);
+                        } else {
+                            tapBtn.innerText = 'Tempo ungültig';
+                            setTimeout(() => {
+                                if (!this.isTapperActive) this._resetTapperState();
+                            }, 1500);
+                        }
+                    }
+                }
+            });
+
+            getEl('vol-slider').value = this.audio.volume;
+            this.updateThemeColor(0);
+        }
+        
+        updateDrift(dt) {
+            // Only run time-based drift here. Sync-based drift happens in loop().
+
+            if (this.evolveActive) {
+                const cycleDur = parseFloat(document.getElementById('inTime').value)*2 + 2; 
+                const step = dt / (cycleDur * this.evolveCycles);
+                this.evolveProgress = (this.evolveProgress + step) % 4;
+                
+                const b = this.xyDriftBounds, p = this.evolveProgress;
+                let dx, dy;
+                if (p < 1) { dx = b.x1 + p * (b.x2 - b.x1); dy = b.y1; }
+                else if (p < 2) { dx = b.x2; dy = b.y1 + (p - 1) * (b.y2 - b.y1); }
+                else if (p < 3) { dx = b.x2 - (p - 2) * (b.x2 - b.x1); dy = b.y2; }
+                else { dx = b.x1; dy = b.y2 - (p - 3) * (b.y2 - b.y1); }
+                this.updateXY(dx, dy);
+            }
+
+            if (this.colorDriftActive) {
+                const cycleDur = parseFloat(document.getElementById('inTime').value)*2; 
+                const speed = 25 / (this.colorDriftCycles * cycleDur); 
+                this.currentColorValue += speed * dt * this.colorDriftDirection;
+                if (this.currentColorValue >= 100) { this.currentColorValue = 100; this.colorDriftDirection = -1; }
+                if (this.currentColorValue <= 0) { this.currentColorValue = 0; this.colorDriftDirection = 1; }
+                this.updateThemeColor(this.currentColorValue);
+                
+                if(!document.body.classList.contains('ui-hidden')) {
+                        document.getElementById('color-slider').value = this.currentColorValue;
+                }
+            }
+        }
+
+        startMetronome() {
+            // Stop any existing timer, but without resetting the beat duration state.
+            // The previous implementation called stopMetronome(), which incorrectly set msPerBeat to 0,
+            // causing the metronome to never start.
+            if (this.metronomeTimeout) clearTimeout(this.metronomeTimeout);
+
+            if (this.msPerBeat <= 0) return;
+            const nextBeat = () => {
+                this.viz.triggerPulse(0.33);
+                this.metronomeTimeout = setTimeout(nextBeat, this.msPerBeat);
+            };
+            this.metronomeTimeout = setTimeout(nextBeat, this.msPerBeat);
+        }
+
+        stopMetronome() {
+            if (this.metronomeTimeout) clearTimeout(this.metronomeTimeout);
+            this.metronomeTimeout = null;
+            this.msPerBeat = 0;
+        }
+
+        _resetTapperState() {
+            this.isTapperActive = false;
+            if (this.tapperTimeout) clearTimeout(this.tapperTimeout); this.tapperTimeout = null;
+            this.stopMetronome(); this.tapTimes = [];
+            const tapBtn = document.getElementById('tap-float');
+            tapBtn.classList.remove('active'); tapBtn.innerText = '♫ Takt tippen';
+
+            const bpmContainer = document.getElementById('bpm-selector-container');
+            bpmContainer.style.display = 'none';
+            document.getElementById('bpm-selector').innerHTML = '';
+            this.musicalLoopOptions = [];
+        }
+
+        resetTapperAndLoadDefault() {
+            this._resetTapperState();
+            this.loadPreset('p1', document.querySelector("button[onclick*='p1']"));
+        }
+
+        updateXYFromEvent(e) {
+            const rect = this.padElement.getBoundingClientRect();
+            const x = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+            const y = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height));
+            if (this.evolveActive) this.toggleDrift(false);
+            this.updateXY(x, y);
+        }
+
+        updateXY(x, y) {
+            this.currentX = x; this.currentY = y;
+            const cursor = document.getElementById('xy-cursor');
+            cursor.style.left = (x * 100) + '%'; cursor.style.top = (y * 100) + '%';
+            this.viz.weights = { mist: (1-x)*(1-y), circle: x*(1-y), ripple: (1-x)*y, luma: x*y };
+            if (x%1!==0 || y%1!==0) document.querySelectorAll('.mode-row .chip').forEach(c => c.classList.remove('active'));
+            
+            // Adjust text position based on lightness of visuals
+            const vizArea = document.getElementById('visual-area');
+            if(y > 0.6 && x > 0.6) { vizArea.classList.remove('pos-center'); vizArea.classList.add('pos-top'); }
+            else { vizArea.classList.remove('pos-top'); vizArea.classList.add('pos-center'); }
+        }
+
+        updateThemeColor(val) {
+            const pct = val / 100;
+            const idx = Math.min(Math.floor(pct * (THEME_PALETTE.length - 1)), THEME_PALETTE.length - 2);
+            const c1 = THEME_PALETTE[idx], c2 = THEME_PALETTE[idx + 1];
+            const t = (pct - (idx / (THEME_PALETTE.length - 1))) * (THEME_PALETTE.length - 1);
+            
+            const lerp = (a, b) => Math.round(a + (b - a) * t);
+            const r = lerp(c1.r, c2.r), g = lerp(c1.g, c2.g), b = lerp(c1.b, c2.b);
+            const rA = lerp(c1.ar, c2.ar), gA = lerp(c1.ag, c2.ag), bA = lerp(c1.ab, c2.ab);
+
+            document.body.style.setProperty('--bg-color', `rgb(${r},${g},${b})`);
+            document.body.style.setProperty('--accent-primary', `rgb(${rA},${gA},${bA})`);
+            this.viz.bgR = r; this.viz.bgG = g; this.viz.bgB = b;
+            this.viz.colors = { r: rA, g: gA, b: bA };
+            this.viz.generateSprite();
+        }
+
+        randomizeVisuals() {
+            const r = Math.random() * 100;
+            this.currentColorValue = r; document.getElementById('color-slider').value = r; this.updateThemeColor(r);
+            const modes = ['mist', 'circle', 'ripple', 'luma'];
+            this.setVisualMode(modes[Math.floor(Math.random()*modes.length)], null);
+            
+            const audioPool = ['gentle', 'ambient', 'bowl-mp3'];
+            const rndAudio = audioPool[Math.floor(Math.random() * audioPool.length)];
+            document.getElementById('soundSelect').value = rndAudio;
+            if (this.isRunning) this.audio.play(rndAudio);
+        }
+
+        toggleDrift(state) {
+            this.evolveActive = state !== undefined ? state : !this.evolveActive;
+            const cx = this.currentX, cy = this.currentY;
+            const d = Math.min(cx, 1-cx, cy, 1-cy);
+            this.xyDriftBounds = { x1: d, x2: 1-d, y1: d, y2: 1-d };
+            
+            if (this.evolveActive) {
+                const b = this.xyDriftBounds;
+                const w = b.x2 - b.x1, h = b.y2 - b.y1;
+                if (w < 0.001 || h < 0.001) this.evolveProgress = 0;
+                else if (Math.abs(cy - b.y1) < 0.001) this.evolveProgress = (cx - b.x1) / w;
+                else if (Math.abs(cx - b.x2) < 0.001) this.evolveProgress = 1 + (cy - b.y1) / h;
+                else if (Math.abs(cy - b.y2) < 0.001) this.evolveProgress = 2 + (b.x2 - cx) / w;
+                else this.evolveProgress = 3 + (b.y2 - cy) / h;
+            }
+            
+            // UI Update
+            const btn = document.getElementById('drift-btn');
+            const status = document.getElementById('drift-status');
+            btn.classList.toggle('active', this.evolveActive);
+            status.innerText = this.evolveActive ? "Ein" : "Aus";
+            document.getElementById('drift-controls').style.display = this.evolveActive ? 'block' : 'none';
+        }
+
+        toggleColorDrift() {
+            this.colorDriftActive = !this.colorDriftActive;
+            document.getElementById('color-drift-btn').classList.toggle('active', this.colorDriftActive);
+            document.getElementById('color-drift-status').innerText = this.colorDriftActive ? "Ein" : "Aus";
+            document.getElementById('color-drift-controls').style.display = this.colorDriftActive ? 'block' : 'none';
+        }
+
+        loadPreset(k, el) {
+            this._resetTapperState(); // Always reset tapper when a preset is chosen.
+
+            const presets = { p1:[5.5,5.5], p2:[4,4], p3:[4,7,8], p4:[5,5,5,5], p5:[6,6], p6:[7,7], p7:[8,8], p8:[5,5] };
+            const p = presets[k];
+            if(!p) return;
+            const getEl = id => document.getElementById(id);
+
+            // Explicitly map presets based on array length to fix bug
+            if (p.length === 4) {
+                getEl('inTime').value = p[0]; getEl('holdFullTime').value = p[1]; getEl('outTime').value = p[2]; getEl('holdEmptyTime').value = p[3];
+            } else if (p.length === 3) {
+                getEl('inTime').value = p[0]; getEl('holdFullTime').value = p[1]; getEl('outTime').value = p[2]; getEl('holdEmptyTime').value = 0;
+            } else if (p.length === 2) {
+                getEl('inTime').value = p[0]; getEl('holdFullTime').value = 0; getEl('outTime').value = p[1]; getEl('holdEmptyTime').value = 0;
+            }
+            
+            const snd = document.getElementById('soundSelect');
+            if (k === 'p8') {
+                if (!snd.value.includes('yrrpheus')) snd.value = "audio/yrrpheus_coherence.mp3";
+            } else {
+                snd.value = "bowl-mp3";
+            }
+            if (this.isRunning) this.audio.play(snd.value);
+            
+            document.querySelectorAll('.preset-scroll .chip').forEach(c=>c.classList.remove('active'));
+            if(el) { el.classList.add('active'); this.currentPreset = el.innerText; }
+            this.updateInfoPanel();
+        }
+
+        setMusicalLoop(multiplier, duration, el) {
+            const getEl = id => document.getElementById(id);
+            const phaseDuration = parseFloat((duration / 2).toFixed(1));
+            getEl('inTime').value = phaseDuration; getEl('outTime').value = phaseDuration;
+            getEl('holdFullTime').value = 0; getEl('holdEmptyTime').value = 0;
+
+            document.querySelectorAll('#bpm-selector .chip').forEach(c => c.classList.remove('active'));
+            if (el) el.classList.add('active');
+            
+            document.querySelectorAll('.preset-scroll .chip').forEach(c => c.classList.remove('active'));
+
+            const bpm = Math.round(60000 / this.msPerBeat);
+            const takte = multiplier === 1 ? 'Takt' : 'Takte';
+            this.currentPreset = `♫ ${bpm} BPM / ${multiplier} ${takte}`;
+            this.updateInfoPanel();
+
+            if (this.isRunning) {
+                if (this.abortCtrl) this.abortCtrl.abort();
+                this.abortCtrl = new AbortController();
+                setTimeout(() => this.loop(this.abortCtrl.signal), 0);
+            }
+        }
+
+        setVisualMode(mode, el) {
+            const map = { mist:[0,0], circle:[1,0], ripple:[0,1], luma:[1,1] };
+            this.updateXY(...map[mode]);
+            document.querySelectorAll('.mode-row .chip').forEach(c=>c.classList.remove('active'));
+            if(el) el.classList.add('active');
+            else document.querySelector(`.mode-row .chip[onclick*="'${mode}'"]`).classList.add('active');
+        }
+
+        toggleUI() { 
+            document.getElementById('ui-container').classList.toggle('hidden'); 
+            document.body.classList.toggle('ui-hidden'); 
+        }
+        toggleMixer() { document.getElementById('xy-pad-container').style.display = document.getElementById('xy-pad-container').style.display === 'flex' ? 'none' : 'flex'; }
+        toggleSliders() { 
+            const el = document.getElementById('viz-sliders'); 
+            el.style.display = el.style.display === 'none' ? 'block' : 'none';
+            document.getElementById('slider-toggle-btn').innerText = el.style.display === 'block' ? "Einstellungen verbergen" : "Einstellungen anzeigen";
+        }
+        toggleTiming() { document.getElementById('timing-grid').classList.toggle('visible'); }
+        closeSummary() { document.getElementById('summary-modal').classList.remove('visible'); }
+        shuffleSession() { this.randomizeVisuals(); }
+        setDuration(m, el) {
+            this.sessionDuration = parseInt(m) || 0;
+            document.querySelectorAll('#duration-scroll .chip').forEach(c => c.classList.remove('active'));
+            const customInput = document.querySelector('#duration-scroll input[type=number]');
+
+            if (el) { // A chip was clicked by the user
+                el.classList.add('active');
+                if (customInput) customInput.value = '';
+            } else { // Programmatic call OR from the custom input field's onchange
+                let matchingChip = null;
+                const chips = document.querySelectorAll('#duration-scroll .chip');
+                // Find if a pre-defined chip matches the duration value
+                for (const chip of chips) {
+                    const onclickVal = chip.getAttribute('onclick');
+                    if (onclickVal && onclickVal.startsWith(`app.setDuration(${this.sessionDuration},`)) {
+                        matchingChip = chip;
+                        break;
+                    }
+                }
+
+                if (matchingChip) {
+                    // A chip matches the value, so highlight it and clear the custom input.
+                    matchingChip.classList.add('active');
+                    if (customInput) customInput.value = '';
+                }
+                // If no chip matches, it's a custom value. The input field itself is the indicator.
+            }
+        }
+
+        updateInfoPanel() {
+            const getEl = id => document.getElementById(id);
+            const val = id => parseFloat(getEl(id).value) || 0;
+            const i=val('inTime'), hf=val('holdFullTime'), o=val('outTime'), he=val('holdEmptyTime');
+            
+            // Helper to format numbers: integers as is, floats to 1 decimal place.
+            const formatNum = n => (n % 1 === 0) ? n : n.toFixed(1);
+
+            const col = (n,l) => `<div class="pd-col"><span class="pd-num">${formatNum(n)}</span><span class="pd-meta">${l}</span></div>`;
+            let h = col(i,'ein'); 
+            if(hf>0) h+=`<span class="pd-sep">:</span>`+col(hf,'halt'); 
+            h+=`<span class="pd-sep">:</span>`+col(o,'aus'); 
+            if(he>0) h+=`<span class="pd-sep">:</span>`+col(he,'pause');
+            
+            const displayEl = getEl('preset-display');
+            displayEl.innerHTML = h;
+            displayEl.classList.add('visible');
+        }
+
+        async toggle() { this.isRunning ? this.stop() : this.start(); }
+        async start() {
+            if (this.isRunning) return;
+            const btn = document.getElementById('startBtn');
+            const instructionEl = document.getElementById('instruction'); 
+            btn.innerText = "Laden...";
+            try {
+                await this.audio.init(); await this.audio.play(document.getElementById('soundSelect').value);
+                if(navigator.wakeLock) try { this.wakelock = await navigator.wakeLock.request('screen'); } catch(e){}
+                
+                this.isRunning = true; this.startTime = Date.now();
+                document.getElementById('ui-container').classList.add('hidden');
+                document.body.classList.add('ui-hidden', 'app-running');
+                document.getElementById('summary-modal').classList.remove('visible');
+                btn.innerText = "Beenden"; btn.classList.add('stop-mode');
+                document.getElementById('stop-float').style.display = 'flex';
+                document.getElementById('preset-display').classList.add('visible');
+                document.getElementById('tap-float').classList.add('visible');
+                this.updateInfoPanel(); // Update display with current values
+
+                this.abortCtrl = new AbortController();
+                this.loop(this.abortCtrl.signal);
+                
+                const timerEl = document.getElementById('session-timer');
+                timerEl.classList.add('visible');
+                this.sessInt = setInterval(() => {
+                    const elap = Date.now() - this.startTime;
+                    if(this.sessionDuration > 0 && elap >= this.sessionDuration*60000) this.stop();
+                    const ms = this.sessionDuration > 0 ? (this.sessionDuration*60000 - elap) : elap;
+                    timerEl.innerText = `${Math.floor(Math.max(0,ms)/60000).toString().padStart(2,'0')}:${Math.floor((Math.max(0,ms)%60000)/1000).toString().padStart(2,'0')}`;
+                }, 1000);
+            } catch (e) {
+                console.error("Start failed:", e);
+                this.isRunning = false;
+                btn.innerText = "Beginnen";
+                if (this.audio.ctx && this.audio.ctx.state === 'suspended') {
+                    instructionEl.innerText = "Klicken zum Starten";
+                    instructionEl.animate([
+                        { opacity: 0.5, transform: 'translateX(-50%) scale(1)' },
+                        { opacity: 1, transform: 'translateX(-50%) scale(1.05)' },
+                        { opacity: 0.5, transform: 'translateX(-50%) scale(1)' }
+                    ], { duration: 800, iterations: 2, easing: 'ease-in-out' });
+                }
+            }
+        }
+
+        stop() {
+            this.isRunning = false;
+            if(this.abortCtrl) this.abortCtrl.abort();
+            this.audio.stop(); clearInterval(this.sessInt);
+            if(this.wakelock) this.wakelock.release();
+            
+            document.getElementById('ui-container').classList.remove('hidden');
+            document.body.classList.remove('ui-hidden', 'app-running');
+            document.getElementById('startBtn').innerText = "Beginnen";
+            document.getElementById('startBtn').classList.remove('stop-mode');
+            document.getElementById('stop-float').style.display = 'none';
+            document.getElementById('preset-display').classList.remove('visible');
+            document.getElementById('tap-float').classList.remove('visible');
+            document.getElementById('session-timer').classList.remove('visible');
+            document.getElementById('instruction').innerText = "Atmen";
+            document.getElementById('breath-timer').innerText = "";
+            this.viz.setBreathState(0.5, 'hold-empty');
+
+            this.startIdleLoop(); // Restart idle drift
+            if ((Date.now() - this.startTime)/1000 >= 30) {
+                const q = quotes[Math.floor(Math.random()*quotes.length)];
+                document.getElementById('summary-time').innerText = Math.floor((Date.now()-this.startTime)/60000) + " Min";
+                document.getElementById('quote-text').innerText = q.quote;
+                document.getElementById('quote-author').innerText = q.source;
+                document.getElementById('summary-modal').classList.add('visible');
+            }
+        }
+
+        async loop(signal) {
+            const val = id => parseFloat(document.getElementById(id).value) || 0;
+            while(!signal.aborted && this.isRunning) {
+                await this.phase("Einatmen", val('inTime'), 0, 1, '#82B1FF', signal);
+                await this.phase("Halten", val('holdFullTime'), 1, 1, '#D1D1D1', signal);
+                await this.phase("Ausatmen", val('outTime'), 1, 0, '#EF9A9A', signal);
+                await this.phase("Pause", val('holdEmptyTime'), 0, 0, '#D1D1D1', signal);
+            }
+        }
+
+        phase(text, dur, startV, endV, col, signal) {
+            if(signal.aborted || !this.isRunning || dur <= 0) return;
+            document.getElementById('instruction').innerText = text;
+            document.getElementById('instruction').style.color = col;
+            
+            let pType = startV < endV ? 'in' : (startV > endV ? 'out' : (startV === 1 ? 'hold-full' : 'hold-empty'));
+            document.getElementById('breath-timer').setAttribute('data-phase', pType);
+            
+            if ((this.audio.currentType === 'bowl' || this.audio.currentType === 'bowl-high') && (pType === 'in' || pType === 'out')) {
+                let detune = pType === 'in' ? 0 : -5;
+                if (this.audio.currentType === 'bowl-high') detune += 12;
+                this.audio.triggerBowlSynth(detune);
+            } else if (this.audio.currentType === 'bowl-mp3' && (pType === 'in' || pType === 'out')) {
+                this.audio.triggerBowl(pType === 'in' ? 0 : -5);
+            } else if (['gentle','ambient'].includes(this.audio.currentType) && (pType==='in'||pType==='out')) {
+                this.audio.triggerImpulse(pType);
+            }
+
+            const start = Date.now();
+            return new Promise(resolve => {
+                let lastTick = start;
+                const tick = () => {
+                    if(signal.aborted || !this.isRunning) {
+                        this.timerWorker.postMessage('stop');
+                        return resolve();
+                    }
+                    const now = Date.now(), prog = Math.min(1, (now - start)/(dur*1000));
+                    const currentBreath = startV + (endV - startV) * (0.5 * (1 - Math.cos(Math.PI * prog)));
+                    
+                    this.viz.setBreathState(currentBreath, pType);
+                    this.audio.updateGenerator(currentBreath);
+                    
+                    const timeDisp = (dur - (dur * prog)).toFixed(0);
+                    const timerEl = document.getElementById('breath-timer');
+                    if(timerEl.innerText !== timeDisp) { timerEl.innerText = timeDisp; timerEl.style.color = col; }
+
+                    this.updateDrift((now - lastTick) / 1000);
+
+                    lastTick = now;
+
+                    if(prog >= 1) {
+                        this.timerWorker.postMessage('stop');
+                        resolve();
+                    }
+                };
+                this.timerWorker.onmessage = tick;
+                this.timerWorker.postMessage('start');
+                tick();
+            });
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        window.app = new BreathApp();
+        window.app.startIdleLoop();
+    });
+    </script>
+</body>
+</html>

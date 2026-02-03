@@ -1,0 +1,41 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+# Erlaubt GITHUB_TOKEN das Deployment
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Concurrency: Bricht alte Builds ab, wenn neue Commits kommen.
+# Das verursacht die Meldung "Canceling since a higher priority waiting request exists".
+# Das ist GUT für die Performance, erzeugt aber graue/rote Abbruch-Icons.
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          # Upload entire repository
+          path: '.'
+
+      - name: Deploy to GitHub Pages
+        uses: actions/deploy-pages@v4
