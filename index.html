@@ -49,8 +49,7 @@
         
         /* TYPOGRAPHY & TEXT */
         .instruction-text {
-            position: absolute; left: 50%; transform: translateX(-50%);
-            font-size: 1.6rem; font-weight: 300; letter-spacing: 0.12em;
+            position: relative; font-size: 1.6rem; font-weight: 300; letter-spacing: 0.12em;
             padding: 25px 45px; border-radius: 16px;
             pointer-events: auto !important; cursor: pointer;
             z-index: 1000; user-select: none;
@@ -59,12 +58,24 @@
             transition: transform 0.2s ease, opacity 0.3s ease;
             backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
         }
-        .instruction-text:active { transform: translateX(-50%) scale(0.96); background: rgba(255,255,255,0.08); }
+        .instruction-text:active { transform: scale(0.96); background: rgba(255,255,255,0.08); }
         body.app-running .instruction-text { pointer-events: none !important; cursor: default; background: transparent; backdrop-filter: none; -webkit-backdrop-filter: none; }
 
+        #pacer-container {
+            position: absolute;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            z-index: 100;
+            transition: top 0.5s ease, bottom 0.5s ease;
+            pointer-events: none; /* Container doesn't capture events */
+        }
+        #pacer-container > * { pointer-events: auto; }
+
         #breath-timer {
-            position: absolute; left: 50%; transform: translateX(-50%);
-            font-size: 1.8rem; font-weight: 300; letter-spacing: 0.1em;
+            position: relative; font-size: 1.8rem; font-weight: 300; letter-spacing: 0.1em;
             color: var(--accent-secondary); background: rgba(0,0,0,0.2);
             padding: 6px 14px; border-radius: 14px; pointer-events: none; z-index: 110;
             font-variant-numeric: tabular-nums; transition: opacity 0.5s ease;
@@ -219,9 +230,9 @@
         @keyframes gentlePulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(255,255,255,0); } 50% { box-shadow: 0 0 0 10px rgba(255,255,255,0.05); } }
 
         /* RESPONSIVE TWEAKS */
-        .pos-top .instruction-text { top: 18%; } .pos-top #breath-timer { top: 28%; }
-        .pos-center .instruction-text { top: 45%; } .pos-center #breath-timer { top: 55%; }
-        .pos-bottom .instruction-text { bottom: 25%; } .pos-bottom #breath-timer { bottom: 15%; }
+        .pos-top #pacer-container { top: 25%; }
+        .pos-center #pacer-container { top: 50%; }
+        .pos-bottom #pacer-container { top: 75%; }
         body:not(.ui-hidden) #breath-timer { opacity: 0 !important; pointer-events: none; }
         
         /* Pacer Arrows */
@@ -240,24 +251,92 @@
             #preset-display { bottom: 100px !important; left: 20px !important; right: auto !important; transform: none !important; }
             #tap-float { bottom: 100px !important; right: 20px !important; left: auto !important; transform: none !important; width: auto !important; padding: 0 18px !important; }
             .pd-meta { display: none; } /* Hide granular labels on mobile */
-            .pos-center .instruction-text { top: 50% !important; background: rgba(0,0,0,0.3); backdrop-filter: blur(8px); }
+            .pos-center #pacer-container { top: 50% !important; }
+            .pos-center .instruction-text { background: rgba(0,0,0,0.3); backdrop-filter: blur(8px); }
         }
         @media (max-width: 767px) {
             #summary-modal { overflow-y: auto; justify-content: flex-start; padding-top: 80px; }
+            #pacer-container { gap: 4px; }
+            .instruction-text {
+                font-size: 1.2rem;
+                padding: 10px 20px;
+                letter-spacing: 0.08em;
+            }
+            #breath-timer {
+                font-size: 1.2rem;
+                background: transparent;
+                padding: 2px 8px;
+            }
+            body.ui-hidden #breath-timer { position: relative !important; top: auto !important; bottom: auto !important; right: auto !important; margin-right: 0 !important; transform: none !important; }
+
             .summary-stat { font-size: 3rem; }
             #timing-toggle-btn { display: block; margin: 0 auto 15px auto; width: auto; font-size: 0.8rem; padding: 8px 16px; opacity: 0.8; }
             #timing-grid { display: none; }
             #timing-grid.visible { display: grid; }
         }
         #timing-toggle-btn { display: none; } /* Hidden on desktop */
+
+        /* --- INFO MODAL STYLES --- */
+        #info-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.6); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+            z-index: 3000; opacity: 0; pointer-events: none;
+            display: flex; align-items: center; justify-content: center;
+            transition: opacity 0.4s ease;
+            padding: 20px;
+        }
+        #info-overlay.visible { opacity: 1; pointer-events: auto; }
+
+        .info-content {
+            background: rgba(20, 20, 20, 0.95);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 24px;
+            padding: 40px;
+            max-width: 550px;
+            width: 100%;
+            text-align: center;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+            transform: scale(0.95); transition: transform 0.4s cubic-bezier(0.19, 1, 0.22, 1);
+        }
+        #info-overlay.visible .info-content { transform: scale(1); }
+
+        .info-content h2 {
+            font-family: 'Forum', serif; font-size: 2rem; margin-top: 0; margin-bottom: 10px;
+            color: var(--accent-primary); letter-spacing: 0.05em;
+        }
+
+        .intro-text {
+            font-size: 1.1rem; opacity: 0.8; line-height: 1.6; margin-bottom: 30px; font-weight: 300;
+        }
+
+        .info-grid { text-align: left; display: flex; flex-direction: column; gap: 20px; margin-bottom: 30px; }
+
+        .info-item { display: flex; gap: 15px; align-items: flex-start; }
+        .info-item .icon { font-size: 1.5rem; line-height: 1; opacity: 0.8; min-width: 30px; }
+        .info-item p { margin: 0; font-size: 0.95rem; line-height: 1.5; opacity: 0.7; }
+        .info-item strong { color: #fff; opacity: 1; font-weight: 500; display: block; margin-bottom: 4px; }
+
+        .footer-text {
+            font-size: 0.8rem; opacity: 0.4; margin-top: 30px; letter-spacing: 0.1em; text-transform: uppercase;
+        }
+
+        /* Mobile Anpassung */
+        @media (max-width: 767px) {
+            #info-toggle-btn { top: calc(var(--safe-top) + 80px) !important; left: 20px !important; }
+            /* #breath-timer size is now handled in a more specific rule above */
+            .info-content { padding: 30px 20px; }
+            .info-content h2 { font-size: 1.6rem; }
+        }
     </style>
 </head>
 <body class="theme-lotusabend">
 
     <div id="visual-area" class="pos-center">
         <canvas id="viz-canvas" class="viz-canvas"></canvas>
-        <div class="instruction-text" id="instruction">Atmen</div>
-        <div id="breath-timer"></div>
+        <div id="pacer-container">
+            <div class="instruction-text" id="instruction" style="z-index: 1;">Atmen</div>
+            <div id="breath-timer"></div>
+        </div>
         <div id="preset-display"></div>
         <div id="bottom-controls"><div id="session-timer"></div></div>
         
@@ -268,6 +347,9 @@
         <div id="color-control" class="top-ctrl">
             <svg class="ctrl-icon" id="color-icon" viewBox="0 0 24 24"><path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9c.83 0 1.5-.67 1.5-1.5 0-.39-.15-.74-.39-1.01-.23-.26-.38-.61-.38-.99 0-.83.67-1.5 1.5-1.5H16c2.76 0 5-2.24 5-5 0-4.42-4.03-8-9-8zm-5.5 9c-.83 0-1.5-.67-1.5-1.5S5.67 9 6.5 9 8 9.67 8 10.5 7.33 12 6.5 12zm3-4C8.67 8 8 7.33 8 6.5S8.67 5 9.5 5s1.5.67 1.5 1.5S10.33 8 9.5 8zm5 0c-.83 0-1.5-.67-1.5-1.5S13.67 5 14.5 5s1.5.67 1.5 1.5S15.33 8 14.5 8zm3 4c-.83 0-1.5-.67-1.5-1.5S16.67 9 17.5 9s1.5.67 1.5 1.5S18.33 12 17.5 12z"/></svg>
             <input type="range" id="color-slider" min="0" max="100" step="0.1" value="0">
+        </div>
+        <div id="info-toggle-btn" class="float-btn" style="left: 20px; top: 100px;" onclick="app.toggleInfo()" title="Über Tonglen">
+            <svg viewBox="0 0 24 24"><path d="M11 7h2v2h-2zm0 4h2v6h-2zm1-9C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/></svg>
         </div>
         <div id="top-random-btn" class="float-btn" onclick="app.randomizeVisuals()">
             <svg viewBox="0 0 24 24"><path d="M10.59 9.17L5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zM14.83 13.41l-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04L14.83 13.41z"/></svg>
@@ -308,6 +390,13 @@
         <div style="display: flex; justify-content: center; margin-bottom: 20px;">
             <button class="chip" id="mixer-toggle" onclick="app.toggleMixer()">Visuals anpassen</button>
         </div>
+
+        <div style="display: flex; justify-content: center; margin-bottom: 20px;">
+            <button id="reverse-mode-btn" class="chip" style="width:auto; justify-content: space-between; display: flex;" onclick="app.toggleReverse();">
+                <span>Tonglen-Modus</span>
+            </button>
+        </div>
+
 
         <label style="margin-left: 5px;">Presets</label>
         <div class="preset-scroll">
@@ -366,8 +455,8 @@
         <button class="btn" id="startBtn">Beginnen</button>
     </div>
 
-    <button id="stop-float" class="btn stop-mode" style="display:none; position:fixed; left:50%; transform:translateX(-50%); bottom:26px; z-index:200; width:220px; box-shadow: 0 4px 15px rgba(0,0,0,0.3);">Beenden</button>
     <button id="tap-float">♫ Takt tippen</button>
+    <button id="stop-float" class="btn stop-mode" style="display:none; position:fixed; left:50%; transform:translateX(-50%); bottom:26px; z-index:200; width:220px; box-shadow: 0 4px 15px rgba(0,0,0,0.3);">Beenden</button>
 
     <button id="restore-ui-btn" aria-label="Menü öffnen">
         <svg viewBox="0 0 24 24"><path d="M7.41 15.41L12 10.83l4.59 4.58L18 14l-6-6-6 6z"/></svg>
@@ -411,6 +500,42 @@
         </div>
         <button class="btn" style="margin-top: 25px; padding: 12px; font-size: 1rem; background: rgba(255,255,255,0.1);" onclick="app.toggleMixer()">Schließen</button>
     </div>
+
+    <div id="info-overlay" onclick="app.toggleInfo()">
+        <div class="info-content" onclick="event.stopPropagation()">
+            <h2>Willkommen bei Tonglen</h2>
+            
+            <p class="intro-text">
+                Digitaler Ruheraum. <br>
+                Kostenlos, universell und für alle da.
+            </p>
+    
+            <div class="info-grid">
+                <div class="info-item">
+                    <span class="icon">∞</span>
+                    <p><strong>Dein Atem, dein Rhythmus.</strong><br>
+                    Fühle dich frei, so zu atmen, wie es dir gut tut. Du kannst jeden Rhythmus wählen. Der Standard ist 5,5 Sekunden (Herzkohärenz). Du kannst jede Musik via Tapping synchronisieren und dazu werden automatisch passende Atemrhythmen berechnet. Passe die Animationen frei an.</p>
+                </div>
+                
+                <div class="info-item">
+                    <span class="icon">🎲</span>
+                    <p><strong>Lass dich treiben.</strong><br>
+                    Nutze den Zufallsbutton oben rechts, um Animationen und Klänge zufällig neu zu mischen.</p>
+                </div>
+    
+                <div class="info-item">
+                    <span class="icon">⚙️</span>
+                    <p><strong>Tonglen Praxis.</strong><br>
+                    Im Menü "Visuals anpassen" kannst du die Atemrichtung umkehren, um das Nehmen und Geben (Tonglen) zu visualisieren.</p>
+                </div>
+            </div>
+    
+            <p class="footer-text">Geschenk an alle.<br>May all beings be happy and free.</p>
+            
+            <button class="btn" style="margin-top:20px; width:auto; padding:12px 40px;" onclick="app.toggleInfo()">Verstanden</button>
+        </div>
+    </div>
+
     <style>@keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }</style>
 
     <script>
@@ -898,7 +1023,8 @@
         constructor() {
             this.viz = new BreathVisuals(document.getElementById('viz-canvas'));
             this.audio = new GentleAudio();
-            this.isRunning = false; this.abortCtrl = null; this.sessionDuration = 0; this.startTime = 0;
+            this.lastVolume = this.audio.volume;
+            this.isRunning = false; this.isReverse = false; this.abortCtrl = null; this.sessionDuration = 0; this.startTime = 0;
             
             this.draggingXY = false;
             this.tapTimes = [];
@@ -909,6 +1035,7 @@
             this.msPerBeat = 0;
 
             // Drift State
+            this.driftWasActiveBeforeDrag = false;
             this.evolveActive = false; this.evolveCycles = 4; this.evolveProgress = 0;
             this.xyDriftBounds = {x1:0, x2:1, y1:0, y2:1};
             this.currentX = 0; this.currentY = 0;
@@ -957,7 +1084,7 @@
         setupUI() {
             const getEl = id => document.getElementById(id);
             getEl('startBtn').addEventListener('click', () => this.toggle());
-            
+
             // Firefox/Touch Fix: Use pointerdown for UI toggles
             const handle = document.querySelector('.handle');
             if(handle) handle.addEventListener('pointerdown', (e) => { e.stopPropagation(); this.toggleUI(); });
@@ -969,7 +1096,7 @@
                 if(e.target.value.includes('yrrpheus')) this.loadPreset('p8', document.querySelector("button[onclick*='p8']"));
                 if(this.isRunning) this.audio.play(e.target.value);
             });
-            
+
             getEl('uploadBtn').addEventListener('click', () => getEl('audioFileInput').click());
             getEl('audioFileInput').addEventListener('change', (e) => {
                 if (e.target.files && e.target.files[0]) {
@@ -982,14 +1109,53 @@
                     if (this.isRunning) this.audio.play(url);
                 }
             });
-            
+
             // Vol / Color
             getEl('vol-slider').addEventListener('input', (e) => {
                 const v = parseFloat(e.target.value); this.audio.setVolume(v);
                 getEl('vol-icon').style.opacity = v <= 0.01 ? 0.5 : 0.9;
             }, { passive: true });
+
+            getEl('volume-control').addEventListener('click', (e) => {
+                if (window.innerWidth > 767 || e.target.tagName === 'INPUT') return;
+                e.preventDefault();
+                const currentVolume = this.audio.volume;
+                if (currentVolume > 0.01) {
+                    this.lastVolume = currentVolume;
+                    this.audio.setVolume(0);
+                    getEl('vol-slider').value = 0;
+                    getEl('vol-icon').style.opacity = 0.5;
+                } else {
+                    const newVol = this.lastVolume > 0.01 ? this.lastVolume : 0.3;
+                    this.audio.setVolume(newVol);
+                    getEl('vol-slider').value = newVol;
+                    getEl('vol-icon').style.opacity = 0.9;
+                }
+            });
+
+            getEl('color-control').addEventListener('click', (e) => {
+                // 1. Logic only applies to mobile/tablet
+                if (window.innerWidth > 1024) return; 
+                
+                // 2. Prevent the randomizer from firing if the user is actually touching the slider
+                if (e.target.tagName === 'INPUT') return; 
+
+                e.preventDefault();
+                
+                // 3. Generate random color and update app state
+                const randomVal = Math.random() * 100;
+                this.currentColorValue = randomVal;
+                
+                // 4. Visual Sync: Update the slider position and the theme engine
+                const slider = document.getElementById('color-slider');
+                if (slider) slider.value = randomVal;
+                this.updateThemeColor(randomVal);
+                
+                // 5. Haptic-like feedback: trigger a subtle pulse in the visuals
+                this.viz.triggerPulse(0.2);
+            });
             
-            const colorSlider = getEl('color-slider');
+             const colorSlider = getEl('color-slider');
             colorSlider.addEventListener('input', (e) => {
                 this.currentColorValue = parseFloat(e.target.value); this.updateThemeColor(this.currentColorValue);
             });
@@ -1010,13 +1176,19 @@
             bindSlider('points-slider', 'viz.setLumaPoints', 'points-val');
             bindSlider('drift-slider', 'evolveCycles', 'drift-val');
             bindSlider('color-drift-slider', 'colorDriftCycles', 'color-drift-val');
-
+        
             // XY Pad
             this.padElement = getEl('xy-pad');
             this.padElement.addEventListener('pointerdown', (e) => {
                 e.preventDefault();
                 this.padElement.setPointerCapture(e.pointerId);
                 this.draggingXY = true;
+
+                this.driftWasActiveBeforeDrag = this.evolveActive;
+                if (this.evolveActive) {
+                    this.toggleDrift(false);
+                }
+
                 this.updateXYFromEvent(e);
             });
             this.padElement.addEventListener('pointermove', (e) => {
@@ -1026,7 +1198,12 @@
                 }
             });
             const endDrag = () => {
+                if (!this.draggingXY) return; // Prevent multiple calls
                 this.draggingXY = false;
+                if (this.driftWasActiveBeforeDrag) {
+                    this.toggleDrift(true);
+                    this.driftWasActiveBeforeDrag = false;
+                }
             };
             this.padElement.addEventListener('pointerup', endDrag);
             this.padElement.addEventListener('pointercancel', endDrag);
@@ -1114,6 +1291,17 @@
             getEl('vol-slider').value = this.audio.volume;
             this.updateThemeColor(0);
         }
+
+        toggleReverse() {
+            this.isReverse = !this.isReverse;
+            const btn = document.getElementById('reverse-mode-btn');
+            
+            if (this.isReverse) {
+                btn.classList.add('active'); // Macht den Button hell
+            } else {
+                btn.classList.remove('active');
+            }
+        }
         
         updateDrift(dt) {
             // Only run time-based drift here. Sync-based drift happens in loop().
@@ -1188,7 +1376,6 @@
             const rect = this.padElement.getBoundingClientRect();
             const x = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
             const y = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height));
-            if (this.evolveActive) this.toggleDrift(false);
             this.updateXY(x, y);
         }
 
@@ -1331,6 +1518,9 @@
             document.body.classList.toggle('ui-hidden'); 
         }
         toggleMixer() { document.getElementById('xy-pad-container').style.display = document.getElementById('xy-pad-container').style.display === 'flex' ? 'none' : 'flex'; }
+        toggleInfo() {
+            document.getElementById('info-overlay').classList.toggle('visible');
+        }
         toggleSliders() { 
             const el = document.getElementById('viz-sliders'); 
             el.style.display = el.style.display === 'none' ? 'block' : 'none';
@@ -1462,6 +1652,7 @@
         }
 
         async loop(signal) {
+            document.getElementById('mixer-toggle').classList.remove('active');
             const val = id => parseFloat(document.getElementById(id).value) || 0;
             while(!signal.aborted && this.isRunning) {
                 await this.phase("Einatmen", val('inTime'), 0, 1, '#82B1FF', signal);
@@ -1499,11 +1690,19 @@
                     }
                     const now = Date.now(), prog = Math.min(1, (now - start)/(dur*1000));
                     const currentBreath = startV + (endV - startV) * (0.5 * (1 - Math.cos(Math.PI * prog)));
+
+                     // WENN Reverse aktiv ist: Drehe den Wert um (1 wird 0, 0 wird 1)
+                    let visualBreath = this.isReverse ? (1 - currentBreath) : currentBreath;
                     
-                    this.viz.setBreathState(currentBreath, pType);
-                    this.audio.updateGenerator(currentBreath);
+                    // Sende den (eventuell umgedrehten) Wert an Visuals und Audio
+                    this.viz.setBreathState(visualBreath, pType);
+                    this.audio.updateGenerator(visualBreath);
                     
-                    const timeDisp = (dur - (dur * prog)).toFixed(0);
+                    const remaining = dur * (1 - prog);
+                    const timeDisp = window.innerWidth < 768 
+                        ? Math.ceil(remaining).toString() 
+                        : remaining.toFixed(1);
+
                     const timerEl = document.getElementById('breath-timer');
                     if(timerEl.innerText !== timeDisp) { timerEl.innerText = timeDisp; timerEl.style.color = col; }
 
@@ -1523,7 +1722,7 @@
         }
     }
 
-    document.addEventListener('DOMContentLoaded', () => {
+     document.addEventListener('DOMContentLoaded', () => {
         window.app = new BreathApp();
         window.app.startIdleLoop();
     });
