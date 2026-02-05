@@ -327,6 +327,74 @@
             .info-content { padding: 30px 20px; }
             .info-content h2 { font-size: 1.6rem; }
         }
+
+        /* --- LAYOUT CYCLE STYLES --- */
+        #layout-toggle-btn { right: 320px; } /* Neben dem Mixer-Button */
+        
+        /* Mobile: Button verstecken */
+        @media (max-width: 767px) {
+            #layout-toggle-btn { display: none !important; }
+        }
+        
+        /* Layout Positionen (Overrides) */
+        /* Wir nutzen !important hier gezielt, um die automatische Helligkeits-Logik zu überschreiben,
+           wenn der User manuell eingreift */
+           
+        /* NEU: Edge (Ganz oben, aligned mit Controls) */
+        body.layout-edge #pacer-container { 
+            top: calc(var(--safe-top) + 25px) !important; 
+            transform: translate(-50%, 0) !important;
+        }
+
+        /* Top (Wie gehabt, leicht darunter) */
+        body.layout-top #pacer-container { 
+            top: 18% !important; 
+            transform: translate(-50%, 0) !important; 
+        }
+
+        /* Center */
+        body.layout-center #pacer-container { 
+            top: 50% !important; 
+            transform: translate(-50%, -50%) !important; 
+        }
+
+        /* Bottom (FIX: Overlap behoben durch bottom-positioning) */
+        body.layout-bottom #pacer-container { 
+            top: auto !important; 
+            bottom: 150px !important; /* Sicherheitsabstand zum Stop-Button */
+            transform: translate(-50%, 0) !important; 
+        }
+
+        body.layout-hidden #pacer-container { 
+            opacity: 0 !important; 
+            pointer-events: none !important; 
+        }
+
+        /* Anpassung für iPad/Desktop im Querformat */
+        @media (min-width: 768px) {
+            #layout-toggle-btn { display: flex; }
+
+            /* DESKTOP UI FIXES */
+            /* 1. Volume Slider immer offen */
+            #volume-control {
+                width: 180px !important;
+                padding: 0 18px !important;
+                justify-content: space-between;
+                /* Optional: Feste Hintergrundfarbe, falls Transparenz stört */
+                background: rgba(0,0,0,0.5); 
+            }
+            #volume-control input {
+                display: block !important;
+            }
+
+            /* 2. Buttons verschieben (Platz schaffen) */
+            #layout-toggle-btn { 
+                right: 290px !important; 
+            }
+            #desktop-viz-toggle { 
+                right: 360px !important; 
+            }
+        }
     </style>
 </head>
 <body class="theme-lotusabend">
@@ -356,6 +424,9 @@
         </div>
         <div id="desktop-viz-toggle" class="float-btn" onclick="app.toggleMixer()" title="Visuals bearbeiten">
             <svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+        </div>
+        <div id="layout-toggle-btn" class="float-btn" onclick="app.cycleLayout()" title="Text-Position ändern">
+            <svg viewBox="0 0 24 24"><path d="M4 15h16v-2H4v2zm0 4h16v-2H4v2zm0-8h16V9H4v2zm0-6v2h16V5H4z"/></svg>
         </div>
     </div>
 
@@ -828,28 +899,47 @@
         }
     }
 
-    /* --- AUDIO ENGINE --- */
+    /* --- AUDIO ENGINE FIX FOR IPAD --- */
     class GentleAudio {
         constructor() { 
             this.ctx = null; this.nodes = []; this.masterGain = null;
             this.volume = parseFloat(localStorage.getItem('atem-volume')) || 0.3;
-            this.audioEl = new Audio(); this.audioEl.crossOrigin = "anonymous"; this.audioEl.loop = true;
+            this.audioEl = new Audio(); 
+            this.audioEl.crossOrigin = "anonymous"; 
+            this.audioEl.loop = true;
+            // FIX: iOS Inline Playback
+            this.audioEl.setAttribute('playsinline', 'true');
             this.buffers = {}; this.currentType = 'none'; this.genNodes = {};
         }
+
         async init() {
             const AC = window.AudioContext || window.webkitAudioContext;
             if (!this.ctx && AC) { 
-                // iOS / iPad unlock
+                this.ctx = new AC();
+                
+                // FIX: Sofortiges Resume versuchen (da wir im Click-Handler sind)
+                if (this.ctx.state === 'suspended') {
+                    await this.ctx.resume();
+                }
+
+                // Fallback Unlocker (für iOS, falls direkter Resume scheitert)
                 this.unlockAudio = () => {
                     if (this.ctx.state === 'suspended') {
                         this.ctx.resume();
-                        const buffer = this.ctx.createBuffer(1, 1, 22050);
-                        const source = this.ctx.createBufferSource(); source.buffer = buffer; source.connect(this.ctx.destination); source.start();
-                        source.onended = () => { document.removeEventListener('touchstart', this.unlockAudio); document.removeEventListener('mousedown', this.unlockAudio); }
                     }
+                    // Buffer Priming (Stille abspielen um Engine zu wecken)
+                    const buffer = this.ctx.createBuffer(1, 1, 22050);
+                    const source = this.ctx.createBufferSource(); 
+                    source.buffer = buffer; 
+                    source.connect(this.ctx.destination); 
+                    source.start(0);
                 };
-                document.addEventListener('touchstart', this.unlockAudio); document.addEventListener('mousedown', this.unlockAudio);
-                this.ctx = new AC();
+                
+                // Listener adden UND sofort einmal ausführen
+                document.addEventListener('touchstart', this.unlockAudio, {once:true});
+                document.addEventListener('click', this.unlockAudio, {once:true});
+                this.unlockAudio(); // Try immediately
+
                 this.masterGain = this.ctx.createGain(); this.masterGain.gain.value = this.volume;
                 this.masterGain.connect(this.ctx.destination);
                 
@@ -864,6 +954,8 @@
             }
             if (this.ctx && this.ctx.state === 'suspended') await this.ctx.resume();
         }
+        
+        // ... (Rest der Klasse bleibt unverändert: setVolume, createReverbBuffer, etc.) ...
         setVolume(v) {
             this.volume = parseFloat(v); localStorage.setItem('atem-volume', this.volume);
             if(this.masterGain) this.masterGain.gain.setTargetAtTime(this.volume, this.ctx.currentTime, 0.1);
@@ -879,19 +971,11 @@
         async loadBuffer(key, url) {
             if(this.buffers[key]) return;
             try {
-                // Debugging: Direkter Versuch ohne automatischen "audio/" Prefix-Fallback, 
-                // da die Optionen im <select> bereits "audio/..." enthalten.
                 const r = await fetch(url);
-                if(!r.ok) {
-                    console.error(`Audio-Fehler: Datei nicht gefunden unter ${url}`);
-                    return;
-                }
+                if(!r.ok) return;
                 const ab = await r.arrayBuffer();
                 this.buffers[key] = await this.ctx.decodeAudioData(ab);
-                console.log(`Audio geladen: ${key}`);
-            } catch(e) {
-                console.error(`Decoding-Fehler bei ${key}:`, e);
-            }
+            } catch(e) {}
         }
         updateGenerator(breathVal) {
             if (!this.ctx || (this.currentType !== 'gentle' && this.currentType !== 'ambient')) return;
@@ -921,7 +1005,6 @@
             s.connect(g); g.connect(this.masterGain);
             s.start(0); s.onended = () => { s.disconnect(); g.disconnect(); };
         }
-
         async play(type) {
             if (this.ctx && this.ctx.state === 'suspended') await this.ctx.resume();
 
@@ -930,7 +1013,7 @@
             if (type === 'none') return;
 
             if (type === 'bowl-mp3') { await this.loadBuffer('bowl', 'audio/e-flat-tibetan-singing-bowl-struck-38746.mp3'); return; }
-            if (type === 'bowl' || type === 'bowl-high') { return; } // Sound is triggered from loop, not here.
+            if (type === 'bowl' || type === 'bowl-high') { return; } 
             if (type === 'water') {
                 await this.loadBuffer('water', 'audio/flowing-water-loop-1-183953.mp3');
                 if(!this.buffers['water']) return;
@@ -1042,6 +1125,9 @@
             this.colorDriftActive = false; this.colorDriftDirection = 1; this.colorDriftCycles = 4;
             this.currentColorValue = 0; this.currentPreset = "";
             
+            // Layout State: 0=Auto, 1=Top, 2=Center, 3=Bottom
+            this.layoutState = 0; 
+            
             // Web Worker for background timing
             const blob = new Blob(["let t;self.onmessage=e=>{if(e.data=='start'){if(t)clearInterval(t);t=setInterval(()=>postMessage('t'),25)}else{clearInterval(t)}}"], {type: 'application/javascript'});
             this.timerWorker = new Worker(URL.createObjectURL(blob));
@@ -1117,7 +1203,9 @@
             }, { passive: true });
 
             getEl('volume-control').addEventListener('click', (e) => {
-                if (window.innerWidth > 767 || e.target.tagName === 'INPUT') return;
+                // FIX: Breiten-Check entfernt. Mute geht jetzt immer, außer man klickt direkt auf den Slider.
+                if (e.target.tagName === 'INPUT') return;
+                
                 e.preventDefault();
                 const currentVolume = this.audio.volume;
                 if (currentVolume > 0.01) {
@@ -1290,6 +1378,22 @@
 
             getEl('vol-slider').value = this.audio.volume;
             this.updateThemeColor(0);
+
+            // --- DRIFT FRACTIONS UPDATE ---
+            const dSlider = getEl('drift-slider');
+            dSlider.min = "0.125";
+            dSlider.step = "0.125";
+            
+            dSlider.addEventListener('input', (e) => {
+                const v = parseFloat(e.target.value);
+                const label = getEl('drift-val');
+                
+                if (Math.abs(v - 0.125) < 0.001) label.innerText = "1/8";
+                else if (Math.abs(v - 0.25) < 0.001) label.innerText = "1/4";
+                else if (Math.abs(v - 0.5) < 0.001) label.innerText = "1/2";
+                else if (Math.abs(v - 0.75) < 0.001) label.innerText = "3/4";
+                else label.innerText = v; // Ganze Zahlen wie gehabt
+            });
         }
 
         toggleReverse() {
@@ -1379,6 +1483,32 @@
             this.updateXY(x, y);
         }
 
+        cycleLayout() {
+            // Zyklus: Auto(0) -> Edge(1) -> Top(2) -> Center(3) -> Bottom(4) -> Hidden(5) -> Auto...
+            this.layoutState = (this.layoutState + 1) % 6;
+            
+            // Clean up old classes (Jetzt mit layout-edge)
+            document.body.classList.remove('layout-edge', 'layout-top', 'layout-center', 'layout-bottom', 'layout-hidden');
+            
+            const btn = document.getElementById('layout-toggle-btn');
+            
+            // Apply new state
+            if (this.layoutState === 0) {
+                // Auto Mode
+                this.updateXY(this.currentX, this.currentY);
+                btn.style.opacity = "0.7"; 
+            } else {
+                // Manual Modes
+                btn.style.opacity = "1"; 
+                
+                if (this.layoutState === 1) document.body.classList.add('layout-edge'); // NEU: Ganz oben
+                if (this.layoutState === 2) document.body.classList.add('layout-top');
+                if (this.layoutState === 3) document.body.classList.add('layout-center');
+                if (this.layoutState === 4) document.body.classList.add('layout-bottom');
+                if (this.layoutState === 5) document.body.classList.add('layout-hidden');
+            }
+        }
+
         updateXY(x, y) {
             this.currentX = x; this.currentY = y;
             const cursor = document.getElementById('xy-cursor');
@@ -1386,10 +1516,18 @@
             this.viz.weights = { mist: (1-x)*(1-y), circle: x*(1-y), ripple: (1-x)*y, luma: x*y };
             if (x%1!==0 || y%1!==0) document.querySelectorAll('.mode-row .chip').forEach(c => c.classList.remove('active'));
             
-            // Adjust text position based on lightness of visuals
-            const vizArea = document.getElementById('visual-area');
-            if(y > 0.6 && x > 0.6) { vizArea.classList.remove('pos-center'); vizArea.classList.add('pos-top'); }
-            else { vizArea.classList.remove('pos-top'); vizArea.classList.add('pos-center'); }
+            // LOGIK ÄNDERUNG: Nur positionieren, wenn wir im AUTO Modus (0) sind
+            if (this.layoutState === 0) {
+                const vizArea = document.getElementById('visual-area');
+                // Auf Mobile behalten wir die Logik bei, auf Desktop nur im Auto-Mode
+                if(y > 0.6 && x > 0.6) { 
+                    vizArea.classList.remove('pos-center'); 
+                    vizArea.classList.add('pos-top'); 
+                } else { 
+                    vizArea.classList.remove('pos-top'); 
+                    vizArea.classList.add('pos-center'); 
+                }
+            }
         }
 
         updateThemeColor(val) {
@@ -1699,9 +1837,8 @@
                     this.audio.updateGenerator(visualBreath);
                     
                     const remaining = dur * (1 - prog);
-                    const timeDisp = window.innerWidth < 768 
-                        ? Math.ceil(remaining).toString() 
-                        : remaining.toFixed(1);
+                    // ÄNDERUNG: Keine Zehntelsekunden mehr auf Desktop. Immer ganze Zahlen.
+                    const timeDisp = Math.ceil(remaining).toString();
 
                     const timerEl = document.getElementById('breath-timer');
                     if(timerEl.innerText !== timeDisp) { timerEl.innerText = timeDisp; timerEl.style.color = col; }
