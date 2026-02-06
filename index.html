@@ -26,12 +26,17 @@
         }
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
         
+        html, body {
+            width: 100%; height: 100%; margin: 0; padding: 0;
+            overflow: hidden; overscroll-behavior: none;
+            -webkit-overflow-scrolling: touch;
+        }
+        
         body {
             background-color: var(--bg-color); color: var(--text-color);
-            font-family: var(--font-stack); margin: 0; height: 100dvh;
-            display: flex; flex-direction: column; overflow: hidden;
+            font-family: var(--font-stack);
+            display: flex; flex-direction: column;
             transition: background-color 2.5s ease; 
-            overscroll-behavior: none;
             touch-action: none; /* Disable native browser gestures */
         }
 
@@ -320,6 +325,12 @@
             font-size: 0.8rem; opacity: 0.4; margin-top: 30px; letter-spacing: 0.1em; text-transform: uppercase;
         }
 
+        .action-row { display: flex; flex-direction: row; gap: 12px; width: 100%; align-items: center; }
+        .action-row button { flex: 1; margin: 0 !important; } /* Reset margins to let flex gap handle spacing */
+        .collapsible-time { margin: 1rem 0; text-align: center; }
+        .collapsible-time summary { cursor: pointer; font-size: 0.85rem; opacity: 0.7; transition: opacity 0.2s; }
+        .collapsible-time summary:hover { opacity: 1; }
+
         /* Mobile Anpassung */
         @media (max-width: 767px) {
             #info-toggle-btn { top: calc(var(--safe-top) + 80px) !important; left: 20px !important; }
@@ -458,12 +469,9 @@
             </div>
         </div>
 
-        <div style="display: flex; justify-content: center; margin-bottom: 20px;">
+        <div class="action-row" style="margin-bottom: 20px;">
             <button class="chip" id="mixer-toggle" onclick="app.toggleMixer()">Visuals anpassen</button>
-        </div>
-
-        <div style="display: flex; justify-content: center; margin-bottom: 20px;">
-            <button id="reverse-mode-btn" class="chip" style="width:auto; justify-content: space-between; display: flex;" onclick="app.toggleReverse();">
+            <button id="reverse-mode-btn" class="chip" onclick="app.toggleReverse();">
                 <span>Tonglen-Modus</span>
             </button>
         </div>
@@ -481,13 +489,17 @@
             <button class="chip" onclick="app.loadPreset('p7', this)">8 : 8</button>
         </div>
 
-        <button id="timing-toggle-btn" class="chip" onclick="app.toggleTiming()">Zeit-Details anzeigen</button>
-        <div class="controls-grid" id="timing-grid">
-            <div><label>Einatmen</label><input type="number" id="inTime" value="5.5" min="2" step="0.5"></div>
-            <div><label>Ausatmen</label><input type="number" id="outTime" value="5.5" min="2" step="0.5"></div>
-            <div><label>Halten (voll)</label><input type="number" id="holdFullTime" value="0" min="0" step="1"></div>
-            <div><label>Pause (leer)</label><input type="number" id="holdEmptyTime" value="0" min="0" step="1"></div>
-        </div>
+        <details class="settings-group collapsible-time">
+          <summary>Individuelle Zeit anpassen</summary>
+          <div class="input-wrapper">
+            <div class="controls-grid" id="timing-grid">
+                <div><label>Einatmen</label><input type="number" id="inTime" value="5.5" min="2" step="0.5"></div>
+                <div><label>Ausatmen</label><input type="number" id="outTime" value="5.5" min="2" step="0.5"></div>
+                <div><label>Halten (voll)</label><input type="number" id="holdFullTime" value="0" min="0" step="1"></div>
+                <div><label>Pause (leer)</label><input type="number" id="holdEmptyTime" value="0" min="0" step="1"></div>
+            </div>
+          </div>
+        </details>
 
         <div class="controls-grid">
             <div class="full-width-col">
@@ -540,8 +552,6 @@
             <div class="xy-label xy-bl">welle</div><div class="xy-label xy-br">licht</div>
             <div id="xy-cursor" style="left: 0%; top: 0%;"></div>
         </div>
-        
-        <button id="slider-toggle-btn" class="chip" style="margin-top: 20px; width: 100%; opacity: 0.9;" onclick="app.toggleSliders()">Einstellungen verbergen</button>
 
         <div class="slider-group" id="viz-sliders" style="display: block;">
             <label><span>Chaos / Varianz</span><span id="chaos-val">0%</span></label>
@@ -552,6 +562,13 @@
             
             <label><span>Geometrie-Punkte</span><span id="points-val">5</span></label>
             <input type="range" id="points-slider" min="3" max="12" step="1" value="5">
+
+            <div style="margin-top: 20px;">
+                <button id="hd-toggle-btn" class="chip" style="width:100%; justify-content: space-between; display: flex;" onclick="app.toggleQuality()">
+                    <span>HD Rendering</span>
+                    <span id="hd-status" style="opacity:0.5">Aus</span>
+                </button>
+            </div>
 
             <div style="margin-top: 20px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 15px;">
                 <label style="margin-bottom: 12px; opacity: 0.5;">Drift & Sync</label>
@@ -569,6 +586,9 @@
                 </div>
             </div>
         </div>
+        
+        <button id="slider-toggle-btn" class="chip" style="margin-top: 20px; width: 100%; opacity: 0.9;" onclick="app.toggleSliders()">Einstellungen verbergen</button>
+
         <button class="btn" style="margin-top: 25px; padding: 12px; font-size: 1rem; background: rgba(255,255,255,0.1);" onclick="app.toggleMixer()">Schließen</button>
     </div>
 
@@ -612,6 +632,18 @@
     <script>
     /* --- OPTIMIZED SIMPLEX NOISE --- */
     const GRAD3 = [[1,1],[-1,1],[1,-1],[-1,-1],[1,0],[-1,0],[1,0],[-1,0],[0,1],[0,-1],[0,1],[0,-1]];
+    const visualConfig = {
+        performance: {
+            dpr: 1,
+            particleCount: 500,
+            mistAlpha: 0.12,
+        },
+        highQuality: {
+            dpr: Math.min(window.devicePixelRatio || 1, 2),
+            particleCount: 1000,
+            mistAlpha: 0.08,
+        }
+    };
     class SimplexNoise { 
         constructor() {
             this.p = new Uint8Array(256);
@@ -647,10 +679,11 @@
 
     /* --- OPTIMIZED VISUAL ENGINE --- */
     class BreathVisuals {
-        constructor(canvas) {
+        constructor(canvas, config) {
             this.canvas = canvas; this.ctx = this.canvas.getContext('2d', { alpha: false, desynchronized: true });
             this.noise = new SimplexNoise(); 
-            this.dpr = Math.min(window.devicePixelRatio || 1, 2);
+            this.config = config;
+            this.dpr = this.config.dpr;
             this.width = 0; this.height = 0; this.centerX = 0; this.centerY = 0;
             this.weights = { mist: 1, circle: 0, ripple: 0, luma: 0 }; 
             this.breathValue = 0.5; this.colors = { r:138, g:138, b:138 };
@@ -659,7 +692,7 @@
             this.tapPulse = 0; this.phase = 'hold-empty'; this.turnSignal = 0;
             
             // Memory Optimization: Pre-allocate particles (Structure of Arrays)
-            this.pCount = 500;
+            this.pCount = this.config.particleCount;
             this.p_x = new Float32Array(this.pCount); this.p_y = new Float32Array(this.pCount);
             this.p_vx = new Float32Array(this.pCount); this.p_vy = new Float32Array(this.pCount);
             this.p_life = new Float32Array(this.pCount); this.p_maxLife = new Float32Array(this.pCount);
@@ -671,6 +704,20 @@
             window.addEventListener('resize', () => this.resize(), { passive: true }); 
             this.resize(); 
             this.animate();
+        }
+
+        setConfig(config) {
+            this.config = config;
+            this.dpr = this.config.dpr;
+            if (this.pCount !== this.config.particleCount) {
+                this.pCount = this.config.particleCount;
+                this.p_x = new Float32Array(this.pCount); this.p_y = new Float32Array(this.pCount);
+                this.p_vx = new Float32Array(this.pCount); this.p_vy = new Float32Array(this.pCount);
+                this.p_life = new Float32Array(this.pCount); this.p_maxLife = new Float32Array(this.pCount);
+                this.p_size = new Float32Array(this.pCount); this.p_baseAlpha = new Float32Array(this.pCount);
+                this.initParticles = false;
+            }
+            this.resize();
         }
 
         updateThemeColors() {
@@ -729,8 +776,7 @@
 
             const safeR = this.bgR || 10, safeG = this.bgG || 10, safeB = this.bgB || 10;
             // Adaptive fade trail
-            let alpha = 0.05; 
-            if (this.weights.mist > 0.5) alpha = 0.12;
+            let alpha = this.config.mistAlpha;
             
             this.ctx.globalCompositeOperation = 'source-over';
             this.ctx.fillStyle = `rgba(${safeR}, ${safeG}, ${safeB}, ${alpha})`;
@@ -1104,7 +1150,8 @@
 
     class BreathApp {
         constructor() {
-            this.viz = new BreathVisuals(document.getElementById('viz-canvas'));
+            this.qualityTier = localStorage.getItem('atem-quality') || 'performance';
+            this.viz = new BreathVisuals(document.getElementById('viz-canvas'), visualConfig[this.qualityTier]);
             this.audio = new GentleAudio();
             this.lastVolume = this.audio.volume;
             this.isRunning = false; this.isReverse = false; this.abortCtrl = null; this.sessionDuration = 0; this.startTime = 0;
@@ -1394,6 +1441,13 @@
                 else if (Math.abs(v - 0.75) < 0.001) label.innerText = "3/4";
                 else label.innerText = v; // Ganze Zahlen wie gehabt
             });
+
+            // Set initial state for HD toggle
+            const isHigh = this.qualityTier === 'highQuality';
+            const btn = getEl('hd-toggle-btn');
+            const status = getEl('hd-status');
+            btn.classList.toggle('active', isHigh);
+            status.innerText = isHigh ? "Ein" : "Aus";
         }
 
         toggleReverse() {
@@ -1651,6 +1705,19 @@
             else document.querySelector(`.mode-row .chip[onclick*="'${mode}'"]`).classList.add('active');
         }
 
+        toggleQuality() {
+            this.qualityTier = this.qualityTier === 'performance' ? 'highQuality' : 'performance';
+            localStorage.setItem('atem-quality', this.qualityTier);
+            this.viz.setConfig(visualConfig[this.qualityTier]);
+            
+            const btn = document.getElementById('hd-toggle-btn');
+            const status = document.getElementById('hd-status');
+            const isHigh = this.qualityTier === 'highQuality';
+            
+            btn.classList.toggle('active', isHigh);
+            status.innerText = isHigh ? "Ein" : "Aus";
+        }
+
         toggleUI() { 
             document.getElementById('ui-container').classList.toggle('hidden'); 
             document.body.classList.toggle('ui-hidden'); 
@@ -1862,6 +1929,21 @@
      document.addEventListener('DOMContentLoaded', () => {
         window.app = new BreathApp();
         window.app.startIdleLoop();
+
+        // iOS Safari Lock
+        document.addEventListener('gesturestart', function(e) {
+            e.preventDefault(); // Disables system zoom
+        });
+
+        document.addEventListener('touchmove', function(e) {
+            // Allow scrolling ONLY in the UI container and Summary modal
+            const isScrollable = e.target.closest('#ui-container') || e.target.closest('#summary-modal');
+            
+            // If we are NOT in a scrollable area, block the move (stops rubber-banding)
+            if (!isScrollable) {
+                e.preventDefault();
+            }
+        }, { passive: false });
     });
     </script>
 </body>
