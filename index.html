@@ -491,7 +491,7 @@
             dpr: 1, particleCount: 500, mistAlpha: 0.12, useGlow: false
         },
         highQuality: {
-            dpr: Math.min(window.devicePixelRatio || 1, 2), particleCount: 1000, mistAlpha: 0.08, useGlow: true
+            dpr: Math.min(window.devicePixelRatio || 1, 2), particleCount: 800, mistAlpha: 0.08, useGlow: false
         }
     };
     class SimplexNoise {
@@ -538,6 +538,9 @@
             this.overdrive = 0;
             this.tapPulse = 0; this.phase = 'hold-empty'; this.turnSignal = 0;
             this.audioBass = 0;
+            this.lastFrameTime = performance.now();
+            this.lowFpsFrames = 0;
+            this.performanceLock = false;
             this.pCount = this.config.particleCount;
             this.initArrays();
             this.particleSprite = null; this.initParticles = false;
@@ -609,6 +612,25 @@
         }
 
         animate() {
+            const now = performance.now();
+            const dt = now - this.lastFrameTime;
+            this.lastFrameTime = now;
+            if (dt > 40) {
+                this.lowFpsFrames++;
+            } else {
+                this.lowFpsFrames = Math.max(0, this.lowFpsFrames - 1);
+            }
+            if (this.lowFpsFrames > 45 && window.app && window.app.qualityTier === 'highQuality' && !this.performanceLock) {
+                this.lowFpsFrames = 0;
+                this.performanceLock = true;
+                window.app.toggleQuality();
+                const inst = document.getElementById('instruction');
+                if (inst) {
+                    const oldText = inst.innerText;
+                    inst.innerText = "Auto-Performance Modus (FPS Drop)";
+                    setTimeout(() => { if (inst.innerText === "Auto-Performance Modus (FPS Drop)") inst.innerText = oldText; }, 3000);
+                }
+            }
             requestAnimationFrame(() => this.animate());
             // Audio reactivity from V3
             this.audioBass = 0;
