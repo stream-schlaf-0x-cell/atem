@@ -368,7 +368,8 @@
                         <option value="water">Fließendes Wasser</option>
                         <option value="audio/accede_atem_track-5_5.mp3">Accede: Atem Track (5.5)</option>
                         <option value="audio/altus_session3.mp3">Altus: Session 3 (5.5)</option>
-                        <option value="audio/yrrpheus_coherence.mp3">Yrrpheus: Coherence</option>
+                        <option value="audio/yrrpheus_coherence.mp3">Yrrpheus: Coherence 5</option>
+                        <option value="audio/yrrpheus_coherence 5.5.mp3">Yrrpheus: Coherence 5.5</option>
                     </select>
                     <input type="file" id="audioFileInput" accept="audio/*" style="display:none">
                     <button class="btn" id="uploadBtn" style="width:auto; padding:10px 14px;">+</button>
@@ -1166,8 +1167,13 @@
             getEl('stop-float').addEventListener('click', () => this.stop());
             getEl('instruction').addEventListener('click', (e) => { e.stopPropagation(); if (!this.isRunning) this.start(); });
             getEl('soundSelect').addEventListener('change', (e) => {
-                if(e.target.value.includes('yrrpheus')) this.loadPreset('p8', document.querySelector("button[onclick*='p8']"));
-                if(this.isRunning) this.audio.play(e.target.value);
+                const val = e.target.value;
+                if(val.includes('yrrpheus_coherence 5.5') || val.includes('5_5')) {
+                    this.loadPreset('p1', document.querySelector(".preset-scroll button[onclick*='p1']"));
+                } else if (val.includes('yrrpheus')) {
+                    this.loadPreset('p8', document.querySelector(".preset-scroll button[onclick*='p8']"));
+                }
+                if(this.isRunning) this.audio.play(val);
             });
             getEl('uploadBtn').addEventListener('click', () => getEl('audioFileInput').click());
             getEl('audioFileInput').addEventListener('change', (e) => {
@@ -1485,8 +1491,17 @@
             else if (p.length === 3) { getEl('inTime').value = p[0]; getEl('holdFullTime').value = p[1]; getEl('outTime').value = p[2]; getEl('holdEmptyTime').value = 0; }
             else if (p.length === 2) { getEl('inTime').value = p[0]; getEl('holdFullTime').value = 0; getEl('outTime').value = p[1]; getEl('holdEmptyTime').value = 0; }
             const snd = document.getElementById('soundSelect');
-            if (k === 'p8') { if (!snd.value.includes('yrrpheus')) snd.value = "audio/yrrpheus_coherence.mp3"; }
-            else { snd.value = "bowl-mp3"; }
+            if (k === 'p8') { 
+                if (!snd.value.includes('yrrpheus_coherence.mp3') && snd.value !== 'audio/yrrpheus_coherence.mp3') {
+                    snd.value = "audio/yrrpheus_coherence.mp3"; 
+                }
+            } else { 
+                if (k === 'p1' && (snd.value.includes('yrrpheus_coherence 5.5') || snd.value.includes('5_5'))) {
+                    // Behalte den manuell gewählten 5.5 Track
+                } else {
+                    snd.value = "bowl-mp3"; 
+                }
+            }
             if (this.isRunning) this.audio.play(snd.value);
             document.querySelectorAll('.preset-scroll .chip').forEach(c => c.classList.remove('active'));
             if(el) { el.classList.add('active'); this.currentPreset = el.innerText; }
