@@ -153,8 +153,8 @@
         .xy-lab-label.right { right: 9px; top: 50%; transform: translateY(-50%); }
         .xy-lab-label.top { left: 50%; top: 8px; transform: translateX(-50%); }
         .xy-lab-label.bottom { left: 50%; bottom: 8px; transform: translateX(-50%); }
-        body.three-active .xy-select { display: none; }
-        body.three-active .xy-lab-label { display: block; }
+        body.three-active .xy-select { display: block; }
+        body.three-active .xy-lab-label { display: none; }
         .slider-group { width: 100%; max-width: 280px; margin-top: 20px; }
         .slider-group label { display: flex; justify-content: space-between; font-size: 0.8rem; opacity: 0.8; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.05em; margin-top: 16px; }
         .master-section { border-top: 1px solid rgba(255,255,255,0.1); margin-top: 20px; padding-top: 15px; }
@@ -515,6 +515,7 @@
                     <div class="lab-slider"><label><span>Licht</span><output id="lab-light-val">55</output></label><input id="lab-light" type="range" min="0" max="1" step="0.001" value="0.55"></div>
                     <div class="lab-slider"><label><span>Komplexität</span><output id="lab-complexity-val">55</output></label><input id="lab-complexity" type="range" min="0.05" max="1" step="0.01" value="0.55"></div>
                     <div class="lab-slider"><label><span>Atmosphäre</span><output id="lab-atmosphere-val">45</output></label><input id="lab-atmosphere" type="range" min="0" max="1" step="0.001" value="0.45"></div>
+                    <div class="lab-slider"><label><span>Rotation</span><output id="lab-rotation-val">35</output></label><input id="lab-rotation" type="range" min="-1" max="1" step="0.01" value="0.35"></div>
                 </div>
                 <div class="lab-locks" aria-label="Parameter beim Mutieren sperren">
                     <button id="lock-family" type="button" class="chip" onclick="app.toggleVisualLock('family')">Set</button>
@@ -523,6 +524,7 @@
                     <button id="lock-depth" type="button" class="chip" onclick="app.toggleVisualLock('depth')">Tiefe</button>
                     <button id="lock-light" type="button" class="chip" onclick="app.toggleVisualLock('light')">Licht</button>
                     <button id="lock-complexity" type="button" class="chip" onclick="app.toggleVisualLock('complexity')">Komplexität</button>
+                    <button id="lock-rotation" type="button" class="chip" onclick="app.toggleVisualLock('rotation')">Rotation</button>
                     <button id="lock-color" type="button" class="chip" onclick="app.toggleVisualLock('color')">Farbe</button>
                 </div>
                 <div class="lab-actions">
@@ -1103,7 +1105,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             this.frameSamples = [];
             this.lastFrame = performance.now();
             this.lastQualityChange = 0;
-            this.recipe = { seed: 0x51a7e1, family: 0, form: 0.63, motion: 0.58, depth: 0.68, light: 0.72, complexity: 0.62, atmosphere: 0.48, symmetry: 0.7, warp: 0.42, density: 0.68, scale: 0.55 };
+            this.recipe = { seed: 0x51a7e1, family: 0, form: 0.63, motion: 0.58, depth: 0.68, light: 0.72, complexity: 0.62, atmosphere: 0.48, rotation: 0.35, symmetry: 0.7, warp: 0.42, density: 0.68, scale: 0.55 };
             this.drift = { x: 0.5, y: 0.5 };
             this.primary = { r: 166, g: 89, b: 89 };
             this.background = { r: 14, g: 11, b: 12 };
@@ -1128,7 +1130,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             this.scene.add(this.root);
             this.uniforms = {
                 uTime: { value: 0 }, uBreath: { value: 0.5 }, uPulse: { value: 0 },
-                uFamily: { value: 0 }, uForm: { value: 0.5 }, uMotion: { value: 0.5 }, uDepth: { value: 0.6 },
+                uFamily: { value: 0 }, uFamilyB: { value: 0 }, uFamilyMix: { value: 0 }, uForm: { value: 0.5 }, uMotion: { value: 0.5 }, uDepth: { value: 0.6 },
                 uLight: { value: 0.55 }, uAtmosphere: { value: 0.45 },
                 uSymmetry: { value: 0.7 }, uWarp: { value: 0.42 }, uScale: { value: 0.55 },
                 uDrift: { value: new T.Vector2(0.5, 0.5) },
@@ -1160,7 +1162,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             const vertexShader = `
                 precision highp float;
                 attribute vec4 aData;
-                uniform float uTime, uBreath, uPulse, uFamily, uForm, uMotion, uDepth, uLight, uAtmosphere, uSymmetry, uWarp, uScale, uPointScale;
+                uniform float uTime, uBreath, uPulse, uFamily, uFamilyB, uFamilyMix, uForm, uMotion, uDepth, uLight, uAtmosphere, uSymmetry, uWarp, uScale, uPointScale;
                 uniform vec2 uDrift;
                 varying float vAlpha; varying float vHue; varying float vSpark;
                 #define PI 3.14159265359
@@ -1175,36 +1177,37 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
                     float breathe=0.78+uBreath*(0.36+uForm*0.34);
                     float speed=(0.12+uMotion*0.82)*energy;
                     float arms=floor(3.0+uSymmetry*9.0);
+                    float family=rnd<uFamilyMix?uFamilyB:uFamily;
                     vec3 p;
-                    if(uFamily<0.5){
+                    if(family<0.5){
                         float petal=0.76+sin(angle*arms+z*2.0+uTime*speed*0.38)*(0.08+uForm*0.24);
                         float phi=acos(clamp(z,-1.0,1.0));
                         p=vec3(sin(phi)*cos(angle),cos(phi),sin(phi)*sin(angle))*(0.3+radius*3.5)*petal*breathe;
-                    } else if(uFamily<1.5){
+                    } else if(family<1.5){
                         float spiralA=angle+radius*(5.0+uSymmetry*11.0)+uTime*speed*0.2;
                         p=vec3(cos(spiralA)*radius*4.8,(z*0.34+sin(angle*arms)*0.05)*(0.25+radius)*space,sin(spiralA)*radius*4.8)*breathe;
-                    } else if(uFamily<2.5){
+                    } else if(family<2.5){
                         float tunnelZ=3.5-aData.z*(10.0+uDepth*8.0);
                         float tunnelA=angle+tunnelZ*(0.12+uWarp*0.34)+sin(tunnelZ*0.9+uTime*speed)*0.28;
                         float tunnelR=(0.55+radius*(2.15+uForm*1.1))*(0.82+uBreath*0.32);
                         p=vec3(cos(tunnelA)*tunnelR,sin(tunnelA)*tunnelR,tunnelZ);
-                    } else if(uFamily<3.5){
+                    } else if(family<3.5){
                         p=vec3(position.x*4.8,position.y*2.6,position.z*3.6*space);
                         p.y+=sin(p.x*(0.8+uSymmetry*1.8)+uTime*speed)*cos(p.z*(0.45+uForm)+uTime*speed*0.55)*(0.28+uWarp*1.25)*breathe;
                         p.x+=sin(p.z*0.8+uTime*speed*0.4)*uAtmosphere*0.5;
-                    } else if(uFamily<4.5){
+                    } else if(family<4.5){
                         float oa=angle+uTime*speed*0.16;
                         float ob=angle*(2.0+floor(uSymmetry*3.0))+z*PI;
                         float major=1.45+uForm*1.15+sin(ob*arms)*0.12;
                         p=vec3((major+z*0.72)*cos(oa),sin(ob)*(0.46+uWarp*0.75),(major+z*0.72)*sin(oa))*breathe;
                         p.xz*=rot(sin(ob)*0.22);
-                    } else if(uFamily<5.5){
+                    } else if(family<5.5){
                         float column=floor(aData.x*arms)/arms*PI*2.0;
                         float columnY=z*(2.4+uDepth*2.8);
                         float arch=pow(max(0.0,1.0-abs(z)),0.42)*(0.5+uForm*1.4);
                         p=vec3(cos(column)*(1.0+radius*2.5+arch),columnY,sin(column)*(1.0+radius*2.5+arch));
                         p.xz*=rot(sin(columnY*0.35+uTime*speed*0.12)*uWarp*0.22);
-                    } else if(uFamily<6.5){
+                    } else if(family<6.5){
                         float ring=floor(aData.y*(4.0+uSymmetry*10.0))/(4.0+uSymmetry*10.0);
                         float ma=angle+sin(angle*arms+uTime*speed*0.45)*uWarp*0.32;
                         float mr=0.45+ring*3.9+(uBreath-0.5)*(0.3+ring*0.5);
@@ -1228,7 +1231,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
                     float perspective=clamp(250.0/max(2.0,-mv.z),0.55,5.5);
                     gl_PointSize=(0.85+rnd*1.85+uLight*1.25+uPulse*1.8)*uPointScale*perspective*(0.82+energy*0.24);
                     vAlpha=(0.17+rnd*0.48)*(0.62+uLight*0.48);
-                    vHue=fract(rnd*0.72+radius*0.38+uForm*0.27+uBreath*0.12+uFamily*0.071);
+                    vHue=fract(rnd*0.72+radius*0.38+uForm*0.27+uBreath*0.12+family*0.071);
                     vSpark=step(0.91,rnd)*(0.45+uPulse*0.55);
                 }`;
             const fragmentShader = `
@@ -1308,6 +1311,12 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             this.drift.x = Math.max(0, Math.min(1, x)); this.drift.y = Math.max(0, Math.min(1, y));
             if (this.uniforms) this.uniforms.uDrift.value.set(this.drift.x, this.drift.y);
         }
+        setFamilyMix(familyA, familyB, mix) {
+            if (!this.uniforms) return;
+            this.uniforms.uFamily.value = familyA;
+            this.uniforms.uFamilyB.value = familyB;
+            this.uniforms.uFamilyMix.value = Math.max(0, Math.min(1, mix));
+        }
         setActive(active) {
             this.active = Boolean(active && this.available);
             if (this.active) { this.lastFrame = performance.now(); this.resize(); }
@@ -1366,7 +1375,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             const family = Math.round(this.recipe.family || 0);
             const breathScale = 0.9 + u.uBreath.value * (0.12 + this.recipe.form * 0.09);
             this.root.scale.setScalar(breathScale);
-            this.root.rotation.y += dt * 0.00002 * (0.25 + this.recipe.motion * 2.0);
+            this.root.rotation.y += dt * 0.00012 * this.recipe.rotation * (0.35 + this.recipe.motion * 1.65);
             this.core.visible = family === 0 || family === 4 || family === 6;
             this.coreGlow.visible = this.core.visible;
             this.rings.visible = family === 0 || family === 2 || family === 4 || family === 5 || family === 6;
@@ -1615,13 +1624,15 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             this.visualLocks = new Set();
             this.visualHistoryStack = [];
             this.visualHistoryIndex = -1;
-            this.visualRecipe = { seed: 0x51a7e1, family: 0, form: 0.63, motion: 0.58, depth: 0.68, light: 0.72, complexity: 0.62, atmosphere: 0.48, symmetry: 0.7, warp: 0.42, density: 0.68, scale: 0.55 };
+            this.visualRecipe = { seed: 0x51a7e1, family: 0, form: 0.63, motion: 0.58, depth: 0.68, light: 0.72, complexity: 0.62, atmosphere: 0.48, rotation: 0.35, symmetry: 0.7, warp: 0.42, density: 0.68, scale: 0.55 };
             this.audio = new GentleAudio();
             this.lastVolume = this.audio.volume;
             this.isRunning = false; this.isStarting = false; this.isReverse = false; this.abortCtrl = null; this.sessionDuration = 0; this.startTime = 0;
             this.audioSyncToken = 0; this.uploadedAudioUrl = null;
             this.draggingXY = false;
             this.padCorners = { tl: 'mist', tr: 'circle', bl: 'ripple', br: 'luma' };
+            this.labPadCorners = { tl: 0, tr: 2, bl: 3, br: 7 };
+            this.visualMixState = { a: 0, b: 2, mix: 0 };
             this.currentX = 0; this.currentY = 0;
             this.threePadInitialized = false;
             this.tapTimes = []; this.isTapperActive = false; this.tapperTimeout = null; this.metronomeTimeout = null; this.msPerBeat = 0; this.tapBpm = 0;
@@ -1830,7 +1841,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             });
             const labSliders = {
                 'lab-form': 'form', 'lab-motion': 'motion', 'lab-depth': 'depth',
-                'lab-light': 'light', 'lab-complexity': 'complexity', 'lab-atmosphere': 'atmosphere'
+                'lab-light': 'light', 'lab-complexity': 'complexity', 'lab-atmosphere': 'atmosphere', 'lab-rotation': 'rotation'
             };
             Object.entries(labSliders).forEach(([id, key]) => {
                 const slider = getEl(id);
@@ -1838,6 +1849,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
                     this.visualRecipe[key] = parseFloat(slider.value);
                     getEl(id + '-val').value = Math.round(this.visualRecipe[key] * 100);
                     this.infiniteViz.setRecipe(this.visualRecipe);
+                    this.updateLabMix(this.currentX, this.currentY);
                     this.updateVisualFamily();
                 }, { passive: true });
                 slider.addEventListener('change', () => this.rememberVisualRecipe());
@@ -1891,9 +1903,10 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
                     this.threePadInitialized = true;
                     this.updateXY(0.5, 0.5);
                 } else {
-                    this.infiniteViz.setDrift(this.currentX, this.currentY);
+                    this.updateLabMix(this.currentX, this.currentY);
                 }
             }
+            this.updateDropdownOptions();
             const warning = document.getElementById('three-unavailable');
             if (wantsThree && !labReady) warning.style.display = 'block';
             else warning.style.display = 'none';
@@ -1909,14 +1922,18 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             const clamp = (value, fallback = 0.5) => {
                 const number = Number(value); return Math.max(0, Math.min(1, Number.isFinite(number) ? number : fallback));
             };
+            const clampSigned = (value, fallback = 0.35) => {
+                const number = Number(value); return Math.max(-1, Math.min(1, Number.isFinite(number) ? number : fallback));
+            };
             this.visualRecipe = {
                 seed: (recipe.seed >>> 0) || 1,
                 family: Math.max(0, Math.min(VISUAL_FAMILIES.length - 1, Math.round(Number(recipe.family) || 0))),
                 form: clamp(recipe.form), motion: clamp(recipe.motion), depth: clamp(recipe.depth),
                 light: clamp(recipe.light), complexity: Math.max(0.08, clamp(recipe.complexity)), atmosphere: clamp(recipe.atmosphere),
+                rotation: clampSigned(recipe.rotation),
                 symmetry: clamp(recipe.symmetry, 0.6), warp: clamp(recipe.warp, 0.4), density: clamp(recipe.density, 0.65), scale: clamp(recipe.scale, 0.55)
             };
-            ['form','motion','depth','light','complexity','atmosphere'].forEach(key => {
+            ['form','motion','depth','light','complexity','atmosphere','rotation'].forEach(key => {
                 const slider = document.getElementById('lab-' + key);
                 const output = document.getElementById('lab-' + key + '-val');
                 if (slider) slider.value = this.visualRecipe[key];
@@ -1924,6 +1941,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             });
             document.getElementById('seed-display').value = this.visualRecipe.seed.toString(16).toUpperCase().padStart(8, '0');
             this.infiniteViz.setRecipe(this.visualRecipe);
+            this.updateLabMix(this.currentX, this.currentY);
             this.updateFamilySelector();
             this.updateVisualFamily();
             if (remember) this.rememberVisualRecipe();
@@ -1960,6 +1978,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             ['form','motion','depth','light','complexity','atmosphere'].forEach(key => {
                 next[key] = respectLocks && this.visualLocks.has(key) ? this.visualRecipe[key] : sample(ranges[key]);
             });
+            next.rotation = respectLocks && this.visualLocks.has('rotation') ? this.visualRecipe.rotation : (0.16 + random.next() * 0.72) * (random.next() < 0.22 ? -1 : 1);
             next.symmetry = 0.22 + random.next() * 0.76;
             next.warp = 0.12 + random.next() * 0.72;
             next.density = 0.54 + random.next() * 0.42;
@@ -1975,7 +1994,16 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             next.family = family;
             this.applyVisualRecipe(next, remember);
             this.setVisualEngine('three');
+            this.labPadCorners.tl = family;
+            this.updateDropdownOptions();
+            this.updateXY(0, 0);
             this.triggerVisualPulse(0.65);
+        }
+        randomizeLabCorners(random, primary) {
+            const pool = VISUAL_FAMILIES.map((_, index) => index).filter(index => index !== primary);
+            for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(random.next() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
+            this.labPadCorners = { tl: primary, tr: pool[0], bl: pool[1], br: pool[2] };
+            this.updateDropdownOptions();
         }
         rememberVisualRecipe() {
             const snapshot = Object.assign({}, this.visualRecipe);
@@ -2002,6 +2030,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
                 const color = (this.currentColorValue + 14 + random.next()*72) % 100;
                 this.currentColorValue = color; document.getElementById('color-slider').value = color; this.updateThemeColor(color);
             }
+            if (!this.visualLocks.has('family')) this.randomizeLabCorners(random, next.family);
             this.updateXY(0.18 + random.next()*0.64, 0.18 + random.next()*0.64);
             this.applyVisualRecipe(next, true); this.setVisualEngine('three'); this.triggerVisualPulse(0.9);
         }
@@ -2010,6 +2039,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             this.visualLocks.clear();
             document.querySelectorAll('.lab-locks button').forEach(button => button.classList.remove('active'));
             const next = this.beautifulVisualRecipe(seed, null, false);
+            this.randomizeLabCorners(random, next.family);
             const color = random.next() * 100; this.currentColorValue = color;
             document.getElementById('color-slider').value = color; this.updateThemeColor(color);
             this.updateXY(0.2 + random.next()*0.6, 0.2 + random.next()*0.6);
@@ -2021,9 +2051,11 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
         }
         updateVisualFamily() {
             const r = this.visualRecipe;
-            const family = VISUAL_FAMILIES[r.family] || VISUAL_FAMILIES[0];
+            const mix = this.visualMixState || { a:r.family, b:r.family, mix:0 };
+            const family = VISUAL_FAMILIES[mix.a] || VISUAL_FAMILIES[0];
+            const second = VISUAL_FAMILIES[mix.b] || family;
             const mood = r.atmosphere > 0.76 ? 'Nebel' : r.motion > 0.7 ? 'Strom' : r.light > 0.78 ? 'Leuchten' : family.mood;
-            document.getElementById('lab-family').innerText = `${family.name} · ${mood}`;
+            document.getElementById('lab-family').innerText = mix.mix > 0.03 && mix.a !== mix.b ? `${family.name} × ${second.name}` : `${family.name} · ${mood}`;
             const stats = this.infiniteViz.getStats();
             if (stats.points) document.getElementById('lab-performance').innerText = `${Math.round(stats.points/1000)}K Punkte · Auto`;
         }
@@ -2035,6 +2067,14 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
         }
 
         updateDropdownOptions() {
+            if (this.visualEngine === 'three') {
+                ['tl','tr','bl','br'].forEach(corner => {
+                    const select = document.querySelector(`.xy-${corner}`); if (!select) return;
+                    select.innerHTML = '';
+                    VISUAL_FAMILIES.forEach((family, index) => select.add(new Option(family.name, String(index), index === this.labPadCorners[corner], index === this.labPadCorners[corner])));
+                });
+                return;
+            }
             const allModes = { mist: 'Nebel', circle: 'Licht', ripple: 'Welle', luma: 'Linien', leere: 'Leere', aura: 'Aura' };
             const corners = ['tl', 'tr', 'bl', 'br'];
             const usedModes = corners.map(c => this.padCorners[c]);
@@ -2050,9 +2090,29 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             });
         }
         updateCorner(corner, mode) {
+            if (this.visualEngine === 'three') {
+                this.labPadCorners[corner] = Math.max(0, Math.min(VISUAL_FAMILIES.length - 1, Number(mode) || 0));
+                this.updateXY(this.currentX, this.currentY);
+                return;
+            }
             this.padCorners[corner] = mode;
             this.updateXY(this.currentX, this.currentY);
             setTimeout(() => this.updateDropdownOptions(), 10);
+        }
+        updateLabMix(x, y) {
+            if (!this.infiniteViz || !this.visualRecipe) return;
+            const weights = [(1-x)*(1-y), x*(1-y), (1-x)*y, x*y];
+            const corners = [this.labPadCorners.tl, this.labPadCorners.tr, this.labPadCorners.bl, this.labPadCorners.br];
+            const totals = new Array(VISUAL_FAMILIES.length).fill(0);
+            corners.forEach((family, index) => totals[family] += weights[index]);
+            const ranked = totals.map((weight, family) => ({ family, weight })).sort((a,b) => b.weight-a.weight);
+            const a = ranked[0], b = ranked[1];
+            const mix = b.weight > 0 ? b.weight / Math.max(0.0001, a.weight + b.weight) : 0;
+            this.visualMixState = { a:a.family, b:b.family, mix };
+            this.infiniteViz.setFamilyMix(a.family, b.family, mix);
+            this.visualRecipe.family = a.family;
+            this.updateFamilySelector();
+            this.updateVisualFamily();
         }
         toggleReverse() {
             this.isReverse = !this.isReverse;
@@ -2141,7 +2201,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             document.getElementById('xy-cursor').style.left = (x * 100) + '%';
             document.getElementById('xy-cursor').style.top = (y * 100) + '%';
             if (this.visualEngine === 'three' && this.visualRecipe) {
-                this.infiniteViz.setDrift(x, y);
+                this.updateLabMix(x, y);
             }
             document.querySelectorAll('#viz-mode-chips .chip').forEach(c => c.classList.remove('active'));
             const w_tl = (1-x)*(1-y); const w_tr = x*(1-y); const w_bl = (1-x)*y; const w_br = x*y;
