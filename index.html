@@ -1142,7 +1142,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             this.scene.add(this.root);
             this.uniforms = {
                 uTime: { value: 0 }, uBreath: { value: 0.5 }, uPulse: { value: 0 },
-                uFamily: { value: 0 }, uFamilyB: { value: 0 }, uFamilyMix: { value: 0 }, uForm: { value: 0.5 }, uMotion: { value: 0.5 }, uDepth: { value: 0.6 },
+                uFamily: { value: 0 }, uFamilyB: { value: 2 }, uFamilyC: { value: 3 }, uFamilyD: { value: 7 }, uFamilyWeights: { value: new T.Vector4(1,0,0,0) }, uForm: { value: 0.5 }, uMotion: { value: 0.5 }, uDepth: { value: 0.6 },
                 uLight: { value: 0.55 }, uAtmosphere: { value: 0.45 },
                 uSymmetry: { value: 0.7 }, uWarp: { value: 0.42 }, uScale: { value: 0.55 },
                 uDrift: { value: new T.Vector2(0.5, 0.5) },
@@ -1174,8 +1174,8 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             const vertexShader = `
                 precision highp float;
                 attribute vec4 aData;
-                uniform float uTime, uBreath, uPulse, uFamily, uFamilyB, uFamilyMix, uForm, uMotion, uDepth, uLight, uAtmosphere, uSymmetry, uWarp, uScale, uPointScale;
-                uniform vec2 uDrift;
+                uniform float uTime, uBreath, uPulse, uFamily, uFamilyB, uFamilyC, uFamilyD, uForm, uMotion, uDepth, uLight, uAtmosphere, uSymmetry, uWarp, uScale, uPointScale;
+                uniform vec2 uDrift; uniform vec4 uFamilyWeights;
                 varying float vAlpha; varying float vHue; varying float vSpark;
                 #define PI 3.14159265359
                 mat2 rot(float a){float s=sin(a),c=cos(a);return mat2(c,-s,s,c);}
@@ -1189,7 +1189,9 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
                     float breathe=0.78+uBreath*(0.36+uForm*0.34);
                     float speed=(0.12+uMotion*0.82)*energy;
                     float arms=floor(3.0+uSymmetry*9.0);
-                    float family=rnd<uFamilyMix?uFamilyB:uFamily;
+                    float cutAB=uFamilyWeights.x+uFamilyWeights.y;
+                    float cutABC=cutAB+uFamilyWeights.z;
+                    float family=rnd<uFamilyWeights.x?uFamily:(rnd<cutAB?uFamilyB:(rnd<cutABC?uFamilyC:uFamilyD));
                     vec3 p;
                     if(family<0.5){
                         float petal=0.76+sin(angle*arms+z*2.0+uTime*speed*0.38)*(0.08+uForm*0.24);
@@ -1323,11 +1325,11 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             this.drift.x = Math.max(0, Math.min(1, x)); this.drift.y = Math.max(0, Math.min(1, y));
             if (this.uniforms) this.uniforms.uDrift.value.set(this.drift.x, this.drift.y);
         }
-        setFamilyMix(familyA, familyB, mix) {
+        setFamilyMix(families, weights) {
             if (!this.uniforms) return;
-            this.uniforms.uFamily.value = familyA;
-            this.uniforms.uFamilyB.value = familyB;
-            this.uniforms.uFamilyMix.value = Math.max(0, Math.min(1, mix));
+            this.uniforms.uFamily.value = families[0]; this.uniforms.uFamilyB.value = families[1];
+            this.uniforms.uFamilyC.value = families[2]; this.uniforms.uFamilyD.value = families[3];
+            this.uniforms.uFamilyWeights.value.set(weights[0],weights[1],weights[2],weights[3]);
         }
         setActive(active) {
             this.active = Boolean(active && this.available);
@@ -2138,7 +2140,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             const a = ranked[0], b = ranked[1];
             const mix = b.weight > 0 ? b.weight / Math.max(0.0001, a.weight + b.weight) : 0;
             this.visualMixState = { a:a.family, b:b.family, mix };
-            this.infiniteViz.setFamilyMix(a.family, b.family, mix);
+            this.infiniteViz.setFamilyMix(corners, weights);
             this.visualRecipe.family = a.family;
             this.updateFamilySelector();
             this.updateVisualFamily();
