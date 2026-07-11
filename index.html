@@ -49,6 +49,8 @@
         #three-canvas { z-index: 1; opacity: 0; pointer-events: none; }
         body.three-active #three-canvas { opacity: 1; }
         body.three-active #viz-canvas { opacity: 0; }
+        body.three-active #visual-area { cursor: grab; touch-action: none; }
+        body.visual-rotating #visual-area { cursor: grabbing; user-select: none; -webkit-user-select: none; }
         .instruction-text {
             position: relative; font-size: 1.6rem; font-weight: 300; letter-spacing: 0.12em;
             padding: 25px 45px; border-radius: 16px;
@@ -170,7 +172,7 @@
         .engine-switch button { border: 0; border-radius: 14px; padding: 8px 11px; color: rgba(255,255,255,0.52); background: transparent; cursor: pointer; font: inherit; font-size: 0.72rem; }
         .engine-switch button.active { color: #fff; background: rgba(255,255,255,0.14); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.1); }
         #three-unavailable { display: none; color: #e6c65a; font-size: 0.72rem; line-height: 1.45; margin: 8px 0 2px; }
-        .seed-console { display: grid; grid-template-columns: auto minmax(90px,1fr) auto auto; gap: 7px; margin: 10px 0 16px; }
+        .seed-console { display: grid; grid-template-columns: auto minmax(90px,1fr) auto auto auto; gap: 7px; margin: 10px 0 16px; }
         .seed-console button, .seed-console output { height: 38px; border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; background: rgba(255,255,255,0.04); color: #fff; display: flex; align-items: center; justify-content: center; }
         .seed-console button { min-width: 38px; cursor: pointer; font-size: 1rem; }
         .seed-console output { padding: 0 10px; font-variant-numeric: tabular-nums; font-size: 0.8rem; letter-spacing: 0.08em; overflow: hidden; }
@@ -509,6 +511,7 @@
                     <output id="seed-display">00000000</output>
                     <button type="button" onclick="app.visualHistory(1)" title="Nächster Seed">›</button>
                     <button type="button" onclick="app.newVisualSeed()" title="Neuer Seed">✦</button>
+                    <button type="button" onclick="app.resetVisualOrientation()" title="Ansicht zentrieren" aria-label="Ansicht zentrieren">◎</button>
                 </div>
                 <div id="family-selector" class="family-scroll" aria-label="Visual Set"></div>
                 <div class="lab-slider-grid">
@@ -1119,9 +1122,12 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             this.lastQualityChange = 0;
             this.recipe = { seed: 0x51a7e1, family: 0, form: 0.63, motion: 0.58, depth: 0.68, light: 0.72, complexity: 0.62, atmosphere: 0.48, rotation: 0.35, symmetry: 0.7, warp: 0.42, density: 0.68, scale: 0.55 };
             this.drift = { x: 0.5, y: 0.5 };
+            this.autoYaw = 0; this.manualYaw = 0; this.manualPitch = 0;
+            this.manualVelocityYaw = 0; this.manualVelocityPitch = 0; this.manualDragging = false;
             this.primary = { r: 166, g: 89, b: 89 };
             this.background = { r: 14, g: 11, b: 12 };
             this.mobile = matchMedia('(max-width: 767px)').matches || /iPhone|iPad|Android/i.test(navigator.userAgent);
+            this.reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
             const memory = Number(navigator.deviceMemory || 4);
             const cores = Number(navigator.hardwareConcurrency || 4);
             this.maxPoints = this.mobile ? (memory <= 4 ? 16000 : 23000) : (cores <= 4 ? 34000 : 48000);
@@ -1331,6 +1337,21 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             this.uniforms.uFamilyC.value = families[2]; this.uniforms.uFamilyD.value = families[3];
             this.uniforms.uFamilyWeights.value.set(weights[0],weights[1],weights[2],weights[3]);
         }
+        beginManualRotation() {
+            this.manualDragging = true; this.manualVelocityYaw = 0; this.manualVelocityPitch = 0;
+        }
+        rotateManual(dx, dy, dt = 16.67) {
+            const sensitivity = this.mobile ? 0.0052 : 0.0044;
+            const frameScale = 16.67 / Math.max(8, Math.min(40, dt));
+            this.manualYaw += dx * sensitivity;
+            this.manualPitch = Math.max(-1.12, Math.min(1.12, this.manualPitch + dy * sensitivity * 0.78));
+            this.manualVelocityYaw = this.reducedMotion ? 0 : dx * sensitivity * frameScale * 0.48;
+            this.manualVelocityPitch = this.reducedMotion ? 0 : dy * sensitivity * 0.78 * frameScale * 0.42;
+        }
+        endManualRotation() { this.manualDragging = false; }
+        resetManualRotation() {
+            this.manualYaw = 0; this.manualPitch = 0; this.manualVelocityYaw = 0; this.manualVelocityPitch = 0;
+        }
         setActive(active) {
             this.active = Boolean(active && this.available);
             if (this.active) { this.lastFrame = performance.now(); this.resize(); }
@@ -1389,7 +1410,18 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             const family = Math.round(this.recipe.family || 0);
             const breathScale = 0.9 + u.uBreath.value * (0.12 + this.recipe.form * 0.09);
             this.root.scale.setScalar(breathScale);
-            this.root.rotation.y += dt * 0.00012 * this.recipe.rotation * (0.35 + this.recipe.motion * 1.65);
+            this.autoYaw += dt * 0.00012 * this.recipe.rotation * (0.35 + this.recipe.motion * 1.65);
+            if (!this.manualDragging) {
+                const frame = dt / 16.67;
+                this.manualYaw += this.manualVelocityYaw * frame;
+                this.manualPitch = Math.max(-1.12, Math.min(1.12, this.manualPitch + this.manualVelocityPitch * frame));
+                const damping = Math.pow(0.88, frame);
+                this.manualVelocityYaw *= damping; this.manualVelocityPitch *= damping;
+                if (Math.abs(this.manualVelocityYaw) < 0.00002) this.manualVelocityYaw = 0;
+                if (Math.abs(this.manualVelocityPitch) < 0.00002) this.manualVelocityPitch = 0;
+            }
+            this.root.rotation.y = this.autoYaw + this.manualYaw;
+            this.root.rotation.x = this.manualPitch;
             this.core.visible = family === 0 || family === 4 || family === 6;
             this.coreGlow.visible = this.core.visible;
             this.rings.visible = family === 0 || family === 2 || family === 4 || family === 5 || family === 6;
@@ -1728,6 +1760,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
         }
         setupUI() {
             const getEl = id => document.getElementById(id);
+            this.setupVisualRotationDrag();
             getEl('startBtn').addEventListener('click', () => this.toggle());
             const handle = document.querySelector('.handle');
             if(handle) handle.addEventListener('pointerdown', (e) => { e.stopPropagation(); this.toggleUI(); });
@@ -1897,6 +1930,44 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             const isHigh = this.qualityTier === 'highQuality';
             getEl('hd-toggle-btn').classList.toggle('active', isHigh);
             getEl('hd-status').innerText = isHigh ? "Ein" : "Aus";
+        }
+
+        setupVisualRotationDrag() {
+            const area = document.getElementById('visual-area');
+            if (!area || !this.infiniteViz) return;
+            let pointerId = null, startX = 0, startY = 0, lastX = 0, lastY = 0, lastTime = 0, rotating = false;
+            const isInteractive = target => target && target.closest && target.closest('button,input,select,a,label,summary,details,.top-ctrl,.float-btn,#instruction,#bottom-controls,#info-overlay,#summary-modal');
+            area.addEventListener('pointerdown', event => {
+                if (this.visualEngine !== 'three' || event.isPrimary === false || (event.button !== undefined && event.button !== 0) || isInteractive(event.target)) return;
+                pointerId = event.pointerId; startX = lastX = event.clientX; startY = lastY = event.clientY; lastTime = performance.now(); rotating = false;
+                try { area.setPointerCapture(pointerId); } catch (error) {}
+            }, { passive:true });
+            area.addEventListener('pointermove', event => {
+                if (pointerId === null || event.pointerId !== pointerId) return;
+                const totalX = event.clientX-startX, totalY = event.clientY-startY;
+                if (!rotating && Math.hypot(totalX,totalY) >= 6) {
+                    rotating = true; document.body.classList.add('visual-rotating'); this.infiniteViz.beginManualRotation();
+                }
+                const now = performance.now();
+                if (rotating) {
+                    event.preventDefault();
+                    this.infiniteViz.rotateManual(event.clientX-lastX,event.clientY-lastY,now-lastTime);
+                }
+                lastX = event.clientX; lastY = event.clientY; lastTime = now;
+            }, { passive:false });
+            const finish = event => {
+                if (pointerId === null || (event && event.pointerId !== pointerId)) return;
+                if (rotating) { if (event) event.preventDefault(); this.infiniteViz.endManualRotation(); }
+                try { area.releasePointerCapture(pointerId); } catch (error) {}
+                pointerId = null; rotating = false; document.body.classList.remove('visual-rotating');
+            };
+            area.addEventListener('pointerup', finish, { passive:false });
+            area.addEventListener('pointercancel', finish, { passive:false });
+            area.addEventListener('lostpointercapture', () => { if (pointerId !== null) { this.infiniteViz.endManualRotation(); pointerId=null; rotating=false; document.body.classList.remove('visual-rotating'); } });
+        }
+        resetVisualOrientation() {
+            if (this.infiniteViz) this.infiniteViz.resetManualRotation();
+            this.triggerVisualPulse(0.25);
         }
 
         setVisualMode(mode, el) {
