@@ -186,16 +186,19 @@
         .lab-locks button { padding: 7px 10px; font-size: 0.7rem; }
         .lab-locks button::before { content: '◇'; margin-right: 5px; }
         .lab-locks button.active::before { content: '◆'; }
+        .lab-target-label { margin: 15px 2px -7px; color: rgba(255,255,255,0.44); font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.08em; }
         .lab-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; margin-top: 14px; }
         .lab-action { border: 1px solid rgba(255,255,255,0.1); border-radius: 13px; padding: 11px 12px; background: rgba(255,255,255,0.06); color: #fff; cursor: pointer; font: inherit; letter-spacing: 0.04em; }
         .lab-action.primary { background: linear-gradient(135deg, rgba(74,99,140,0.8), rgba(230,198,90,0.28)); border-color: rgba(255,255,255,0.15); }
         .lab-action-note { grid-column: 1 / -1; margin: 0 2px; color: rgba(255,255,255,0.42); font-size: 0.66rem; line-height: 1.45; text-align: center; }
+        .lab-drift-panel { margin-top: 15px; padding: 12px; border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; background: rgba(0,0,0,0.14); }
+        .lab-drift-panel > button { width: 100%; display: flex; justify-content: space-between; margin-bottom: 12px; }
         .lab-meter { margin-top: 14px; padding: 10px 12px; display: flex; justify-content: space-between; gap: 12px; border-radius: 12px; background: rgba(0,0,0,0.2); font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.08em; color: rgba(255,255,255,0.44); }
         .lab-meter span:last-child { color: rgba(255,255,255,0.75); }
         #classic-controls { margin-top: 18px; }
         @media (max-width: 767px) and (orientation: portrait) {
             .lab-slider-grid { grid-template-columns: 1fr 1fr; gap: 12px; }
-            .lab-locks, .lab-meter { display: none; }
+            .lab-locks, .lab-target-label, .lab-meter { display: none; }
             #xy-pad-container { padding-bottom: calc(25px + var(--safe-bottom)); }
         }
         @media (max-width: 520px) {
@@ -517,20 +520,29 @@
                     <div class="lab-slider"><label><span>Atmosphäre</span><output id="lab-atmosphere-val">45</output></label><input id="lab-atmosphere" type="range" min="0" max="1" step="0.001" value="0.45"></div>
                     <div class="lab-slider"><label><span>Rotation</span><output id="lab-rotation-val">35</output></label><input id="lab-rotation" type="range" min="-1" max="1" step="0.01" value="0.35"></div>
                 </div>
-                <div class="lab-locks" aria-label="Parameter beim Mutieren sperren">
-                    <button id="lock-family" type="button" class="chip" onclick="app.toggleVisualLock('family')">Set</button>
-                    <button id="lock-form" type="button" class="chip" onclick="app.toggleVisualLock('form')">Form</button>
-                    <button id="lock-motion" type="button" class="chip" onclick="app.toggleVisualLock('motion')">Bewegung</button>
-                    <button id="lock-depth" type="button" class="chip" onclick="app.toggleVisualLock('depth')">Tiefe</button>
-                    <button id="lock-light" type="button" class="chip" onclick="app.toggleVisualLock('light')">Licht</button>
-                    <button id="lock-complexity" type="button" class="chip" onclick="app.toggleVisualLock('complexity')">Komplexität</button>
-                    <button id="lock-rotation" type="button" class="chip" onclick="app.toggleVisualLock('rotation')">Rotation</button>
-                    <button id="lock-color" type="button" class="chip" onclick="app.toggleVisualLock('color')">Farbe</button>
+                <div class="lab-drift-panel">
+                    <button id="lab-drift-btn" type="button" class="chip" onclick="app.toggleDrift()"><span>Mix-Drift</span><span id="lab-drift-status" style="opacity:0.55">Aus</span></button>
+                    <div class="lab-slider-grid">
+                        <div class="lab-slider"><label><span>Tempo</span><output id="lab-drift-speed-val">50</output></label><input id="lab-drift-speed" type="range" min="0" max="1" step="0.01" value="0.5"></div>
+                        <div class="lab-slider"><label><span>Weite</span><output id="lab-drift-range-val">65</output></label><input id="lab-drift-range" type="range" min="0" max="1" step="0.01" value="0.65"></div>
+                    </div>
+                </div>
+                <div class="lab-target-label">Mutationsziele · aktiv wird verändert</div>
+                <div class="lab-locks" aria-label="Parameter zum Mutieren auswählen">
+                    <button id="target-family" type="button" class="chip active" onclick="app.toggleVisualTarget('family')">Set</button>
+                    <button id="target-form" type="button" class="chip active" onclick="app.toggleVisualTarget('form')">Form</button>
+                    <button id="target-motion" type="button" class="chip active" onclick="app.toggleVisualTarget('motion')">Bewegung</button>
+                    <button id="target-depth" type="button" class="chip active" onclick="app.toggleVisualTarget('depth')">Tiefe</button>
+                    <button id="target-light" type="button" class="chip active" onclick="app.toggleVisualTarget('light')">Licht</button>
+                    <button id="target-complexity" type="button" class="chip active" onclick="app.toggleVisualTarget('complexity')">Komplexität</button>
+                    <button id="target-atmosphere" type="button" class="chip active" onclick="app.toggleVisualTarget('atmosphere')">Atmosphäre</button>
+                    <button id="target-rotation" type="button" class="chip active" onclick="app.toggleVisualTarget('rotation')">Rotation</button>
+                    <button id="target-color" type="button" class="chip active" onclick="app.toggleVisualTarget('color')">Farbe</button>
                 </div>
                 <div class="lab-actions">
                     <button type="button" class="lab-action primary" onclick="app.mutateVisual()">Mutieren</button>
                     <button type="button" class="lab-action" onclick="app.randomizeVisualLab()">Reset & neu</button>
-                    <p class="lab-action-note"><strong>Mutieren</strong> respektiert deine Sperren. <strong>Reset & neu</strong> löst sie und startet ein völlig neues Universum.</p>
+                    <p class="lab-action-note"><strong>Mutieren</strong> verändert nur markierte Parameter. <strong>Reset & neu</strong> erzeugt unabhängig davon ein vollständiges neues Universum.</p>
                 </div>
                 <div class="lab-meter"><span id="lab-family">Breathfield</span><span id="lab-performance">Adaptive Qualität</span></div>
             </div>
@@ -1621,7 +1633,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             this.viz = new BreathVisuals(document.getElementById('viz-canvas'), visualConfig[this.qualityTier]);
             this.infiniteViz = new InfiniteVisuals(document.getElementById('three-canvas'));
             this.visualEngine = 'canvas';
-            this.visualLocks = new Set();
+            this.visualTargets = new Set(['family','form','motion','depth','light','complexity','atmosphere','rotation','color']);
             this.visualHistoryStack = [];
             this.visualHistoryIndex = -1;
             this.visualRecipe = { seed: 0x51a7e1, family: 0, form: 0.63, motion: 0.58, depth: 0.68, light: 0.72, complexity: 0.62, atmosphere: 0.48, rotation: 0.35, symmetry: 0.7, warp: 0.42, density: 0.68, scale: 0.55 };
@@ -1639,6 +1651,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             this.musicalLoopOptions = [];
             this.driftWasActiveBeforeDrag = false;
             this.evolveActive = false; this.evolveCycles = 4; this.evolveProgress = 0;
+            this.labDriftRange = 0.65;
             this.xyDriftBounds = {x1:0, x2:1, y1:0, y2:1};
             this.colorDriftActive = false; this.colorDriftDirection = 1; this.colorDriftCycles = 4;
             this.currentColorValue = 0; this.currentPreset = ""; this.layoutState = 1;
@@ -1776,6 +1789,18 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             bindSlider('points-slider', 'viz.setLumaPoints', 'points-val');
             bindSlider('drift-slider', 'evolveCycles', 'drift-val');
             bindSlider('color-drift-slider', 'colorDriftCycles', 'color-drift-val');
+            const labDriftSpeed = getEl('lab-drift-speed');
+            const labDriftRange = getEl('lab-drift-range');
+            labDriftSpeed.addEventListener('input', () => {
+                const value = parseFloat(labDriftSpeed.value); this.evolveCycles = 8.125 - value * 8;
+                getEl('lab-drift-speed-val').value = Math.round(value * 100);
+                getEl('drift-slider').value = this.evolveCycles;
+            }, { passive:true });
+            labDriftRange.addEventListener('input', () => {
+                this.labDriftRange = parseFloat(labDriftRange.value);
+                getEl('lab-drift-range-val').value = Math.round(this.labDriftRange * 100);
+                if (this.evolveActive) this.updateDriftBounds(false);
+            }, { passive:true });
             this.padElement = getEl('xy-pad');
             this.padElement.addEventListener('pointerdown', (e) => {
                 if(e.target.tagName === 'SELECT') return;
@@ -1833,6 +1858,8 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             const dSlider = getEl('drift-slider'); dSlider.min = "0.125"; dSlider.step = "0.125";
             dSlider.addEventListener('input', (e) => {
                 const v = parseFloat(e.target.value); const label = getEl('drift-val');
+                const speed = Math.max(0, Math.min(1, (8.125 - v) / 8));
+                labDriftSpeed.value = speed; getEl('lab-drift-speed-val').value = Math.round(speed * 100);
                 if (Math.abs(v - 0.125) < 0.001) label.innerText = "1/8";
                 else if (Math.abs(v - 0.25) < 0.001) label.innerText = "1/4";
                 else if (Math.abs(v - 0.5) < 0.001) label.innerText = "1/2";
@@ -1961,11 +1988,11 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             const index = this.visualRecipe ? this.visualRecipe.family : 0;
             document.querySelectorAll('#family-selector .family-chip').forEach(button => button.classList.toggle('active', Number(button.dataset.family) === index));
         }
-        beautifulVisualRecipe(seed, requestedFamily = null, respectLocks = true) {
+        beautifulVisualRecipe(seed, requestedFamily = null, respectTargets = true) {
             const random = new SeededRandom(seed);
             let family = requestedFamily === null ? Math.floor(random.next() * VISUAL_FAMILIES.length) : requestedFamily;
-            if (requestedFamily === null && respectLocks && this.visualLocks.has('family')) family = this.visualRecipe.family;
-            if (requestedFamily === null && !(respectLocks && this.visualLocks.has('family')) && family === this.visualRecipe.family && random.next() < 0.72) {
+            if (requestedFamily === null && respectTargets && !this.visualTargets.has('family')) family = this.visualRecipe.family;
+            if (requestedFamily === null && (!respectTargets || this.visualTargets.has('family')) && family === this.visualRecipe.family && random.next() < 0.72) {
                 family = (family + 1 + Math.floor(random.next() * (VISUAL_FAMILIES.length - 1))) % VISUAL_FAMILIES.length;
             }
             family = Math.max(0, Math.min(VISUAL_FAMILIES.length - 1, Math.round(family)));
@@ -1974,18 +2001,20 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
                 const eased = (random.next() + random.next()) * 0.5;
                 return range[0] + (range[1] - range[0]) * eased;
             };
-            const next = { seed, family };
+            const structuralTarget = !respectTargets || this.visualTargets.has('family') || this.visualTargets.has('form');
+            const geometryTarget = structuralTarget || !respectTargets || this.visualTargets.has('complexity');
+            const next = { seed: geometryTarget ? seed : this.visualRecipe.seed, family };
             ['form','motion','depth','light','complexity','atmosphere'].forEach(key => {
-                next[key] = respectLocks && this.visualLocks.has(key) ? this.visualRecipe[key] : sample(ranges[key]);
+                next[key] = respectTargets && !this.visualTargets.has(key) ? this.visualRecipe[key] : sample(ranges[key]);
             });
-            next.rotation = respectLocks && this.visualLocks.has('rotation') ? this.visualRecipe.rotation : (0.16 + random.next() * 0.72) * (random.next() < 0.22 ? -1 : 1);
-            next.symmetry = 0.22 + random.next() * 0.76;
-            next.warp = 0.12 + random.next() * 0.72;
-            next.density = 0.54 + random.next() * 0.42;
-            next.scale = 0.38 + random.next() * 0.42;
-            if (family === 2) next.scale = Math.min(next.scale, 0.66);
-            if (family === 5) next.symmetry = Math.max(0.48, next.symmetry);
-            if (family === 6) next.symmetry = Math.max(0.58, next.symmetry);
+            next.rotation = respectTargets && !this.visualTargets.has('rotation') ? this.visualRecipe.rotation : (0.16 + random.next() * 0.72) * (random.next() < 0.22 ? -1 : 1);
+            next.symmetry = structuralTarget ? 0.22 + random.next() * 0.76 : this.visualRecipe.symmetry;
+            next.warp = structuralTarget ? 0.12 + random.next() * 0.72 : this.visualRecipe.warp;
+            next.density = (!respectTargets || this.visualTargets.has('complexity')) ? 0.54 + random.next() * 0.42 : this.visualRecipe.density;
+            next.scale = structuralTarget ? 0.38 + random.next() * 0.42 : this.visualRecipe.scale;
+            if (structuralTarget && family === 2) next.scale = Math.min(next.scale, 0.66);
+            if (structuralTarget && family === 5) next.symmetry = Math.max(0.48, next.symmetry);
+            if (structuralTarget && family === 6) next.symmetry = Math.max(0.58, next.symmetry);
             return next;
         }
         selectVisualFamily(family, remember = true) {
@@ -2026,18 +2055,18 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
         mutateVisual() {
             const seed = this.nextVisualSeed(); const random = new SeededRandom(seed);
             const next = this.beautifulVisualRecipe(seed, null, true);
-            if (!this.visualLocks.has('color')) {
+            if (this.visualTargets.has('color')) {
                 const color = (this.currentColorValue + 14 + random.next()*72) % 100;
                 this.currentColorValue = color; document.getElementById('color-slider').value = color; this.updateThemeColor(color);
             }
-            if (!this.visualLocks.has('family')) this.randomizeLabCorners(random, next.family);
-            this.updateXY(0.18 + random.next()*0.64, 0.18 + random.next()*0.64);
+            if (this.visualTargets.has('family')) {
+                this.randomizeLabCorners(random, next.family);
+                this.updateXY(0.18 + random.next()*0.64, 0.18 + random.next()*0.64);
+            }
             this.applyVisualRecipe(next, true); this.setVisualEngine('three'); this.triggerVisualPulse(0.9);
         }
         randomizeVisualLab() {
             const seed = this.nextVisualSeed(); const random = new SeededRandom(seed);
-            this.visualLocks.clear();
-            document.querySelectorAll('.lab-locks button').forEach(button => button.classList.remove('active'));
             const next = this.beautifulVisualRecipe(seed, null, false);
             this.randomizeLabCorners(random, next.family);
             const color = random.next() * 100; this.currentColorValue = color;
@@ -2045,9 +2074,9 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             this.updateXY(0.2 + random.next()*0.6, 0.2 + random.next()*0.6);
             this.applyVisualRecipe(next, true); this.setVisualEngine('three'); this.triggerVisualPulse(1);
         }
-        toggleVisualLock(key) {
-            if (this.visualLocks.has(key)) this.visualLocks.delete(key); else this.visualLocks.add(key);
-            const button = document.getElementById('lock-' + key); if (button) button.classList.toggle('active', this.visualLocks.has(key));
+        toggleVisualTarget(key) {
+            if (this.visualTargets.has(key)) this.visualTargets.delete(key); else this.visualTargets.add(key);
+            const button = document.getElementById('target-' + key); if (button) button.classList.toggle('active', this.visualTargets.has(key));
         }
         updateVisualFamily() {
             const r = this.visualRecipe;
@@ -2287,19 +2316,28 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
 
         toggleDrift(state) {
             this.evolveActive = state !== undefined ? state : !this.evolveActive;
-            const cx = this.currentX, cy = this.currentY; const d = Math.min(cx, 1-cx, cy, 1-cy);
-            this.xyDriftBounds = { x1: d, x2: 1-d, y1: d, y2: 1-d };
-            if (this.evolveActive) {
-                const b = this.xyDriftBounds, w = b.x2 - b.x1, h = b.y2 - b.y1;
-                if (w < 0.001 || h < 0.001) this.evolveProgress = 0;
-                else if (Math.abs(cy - b.y1) < 0.001) this.evolveProgress = (cx - b.x1) / w;
-                else if (Math.abs(cx - b.x2) < 0.001) this.evolveProgress = 1 + (cy - b.y1) / h;
-                else if (Math.abs(cy - b.y2) < 0.001) this.evolveProgress = 2 + (b.x2 - cx) / w;
-                else this.evolveProgress = 3 + (b.y2 - cy) / h;
-            }
+            if (this.evolveActive) this.updateDriftBounds(true);
             document.getElementById('drift-btn').classList.toggle('active', this.evolveActive);
             document.getElementById('drift-status').innerText = this.evolveActive ? "Ein" : "Aus";
             document.getElementById('drift-controls').style.display = this.evolveActive ? 'block' : 'none';
+            document.getElementById('lab-drift-btn').classList.toggle('active', this.evolveActive);
+            document.getElementById('lab-drift-status').innerText = this.evolveActive ? "Ein" : "Aus";
+        }
+        updateDriftBounds(projectCurrent = false) {
+            const half = 0.08 + Math.max(0, Math.min(1, this.labDriftRange)) * 0.42;
+            this.xyDriftBounds = { x1:0.5-half, x2:0.5+half, y1:0.5-half, y2:0.5+half };
+            if (!projectCurrent) return;
+            const b = this.xyDriftBounds, w = b.x2-b.x1, h = b.y2-b.y1;
+            const clamp = (v,min,max) => Math.max(min,Math.min(max,v));
+            const cx=this.currentX, cy=this.currentY;
+            const candidates = [
+                {x:clamp(cx,b.x1,b.x2),y:b.y1,p:(clamp(cx,b.x1,b.x2)-b.x1)/w},
+                {x:b.x2,y:clamp(cy,b.y1,b.y2),p:1+(clamp(cy,b.y1,b.y2)-b.y1)/h},
+                {x:clamp(cx,b.x1,b.x2),y:b.y2,p:2+(b.x2-clamp(cx,b.x1,b.x2))/w},
+                {x:b.x1,y:clamp(cy,b.y1,b.y2),p:3+(b.y2-clamp(cy,b.y1,b.y2))/h}
+            ];
+            candidates.sort((a,b2)=>(a.x-cx)**2+(a.y-cy)**2-((b2.x-cx)**2+(b2.y-cy)**2));
+            this.evolveProgress = candidates[0].p;
         }
         toggleColorDrift() {
             this.colorDriftActive = !this.colorDriftActive;
