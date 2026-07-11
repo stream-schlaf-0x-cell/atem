@@ -106,12 +106,19 @@
         .btn.stop-mode { background: var(--accent-primary); opacity: 0.95; }
         #stop-float { height: 56px; padding: 0; display: flex; align-items: center; justify-content: center; }
         .mode-row { display: flex; gap: 8px; margin-bottom: 24px; justify-content: center; flex-wrap: wrap; }
+        .pure-set-grid { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 7px; margin: 0 0 20px; }
+        .pure-set-grid .chip { justify-content: center; min-width: 0; padding-left: 8px; padding-right: 8px; font-size: 0.72rem; }
+        @media (max-width: 520px) { .pure-set-grid { grid-template-columns: repeat(2,minmax(0,1fr)); } }
         input[type=range] { -webkit-appearance: none; width: 100%; background: transparent; cursor: pointer; margin: 0; padding: 0; }
         input[type=range]:focus { outline: none; }
         input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 6px; cursor: pointer; background: rgba(255, 255, 255, 0.15); border-radius: 3px; border: none; }
         input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; height: 20px; width: 20px; border-radius: 50%; background: #ffffff; box-shadow: 0 2px 6px rgba(0,0,0,0.4); cursor: pointer; margin-top: -7px; transition: transform 0.1s ease; }
         input[type=range]:active::-webkit-slider-thumb { transform: scale(1.1); }
+        input[type=range]::-moz-range-track { width: 100%; height: 6px; cursor: pointer; background: rgba(255,255,255,0.15); border-radius: 3px; border: 0; }
+        input[type=range]::-moz-range-progress { height: 6px; background: rgba(255,255,255,0.24); border-radius: 3px; }
+        input[type=range]::-moz-range-thumb { height: 20px; width: 20px; border: 0; border-radius: 50%; background: #fff; box-shadow: 0 2px 6px rgba(0,0,0,0.4); cursor: pointer; }
         #color-slider::-webkit-slider-runnable-track { background: var(--color-slider-gradient, rgba(255,255,255,0.15)); }
+        #color-slider::-moz-range-track { background: var(--color-slider-gradient, rgba(255,255,255,0.15)); }
         #vol-slider::-webkit-slider-thumb { background: var(--accent-primary); }
         .top-ctrl { transition: width 0.3s cubic-bezier(0.2, 0.8, 0.2, 1), background 0.3s; overflow: hidden; }
         @media (max-width: 767px) {
@@ -132,9 +139,11 @@
         #desktop-viz-toggle { right: 380px; display: none; }
         @media (min-width: 768px) { #desktop-viz-toggle { display: flex; } }
         #xy-pad-toggle-btn { top: auto; bottom: calc(var(--safe-bottom) + 20px); left: calc(var(--safe-left) + 20px); }
-        #xy-pad-container { display: none; flex-direction: column; align-items: center; position: fixed; z-index: 2000; background: rgba(15, 15, 15, 0.9); backdrop-filter: blur(25px); -webkit-backdrop-filter: blur(25px); border: 1px solid rgba(255,255,255,0.1); padding: 25px; transition: opacity 0.3s, transform 0.3s; }
-        @media (max-width: 767px) { #xy-pad-container { bottom: 0; left: 0; width: 100%; border-radius: 24px 24px 0 0; max-height: 85vh; overflow-y: auto; box-shadow: 0 -10px 50px rgba(0,0,0,0.6); } }
-        @media (min-width: 768px) { #xy-pad-container { top: 50%; right: 40px; transform: translateY(-50%); width: 340px; border-radius: 24px; max-height: 90vh; box-shadow: 0 10px 50px rgba(0,0,0,0.4); } }
+        #xy-pad-container { display: none; flex-direction: column; align-items: stretch; position: fixed; z-index: 2000; background: rgba(10, 10, 13, 0.965); backdrop-filter: blur(30px); -webkit-backdrop-filter: blur(30px); border: 1px solid rgba(255,255,255,0.12); padding: 20px; transition: opacity 0.3s, transform 0.3s; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.25) transparent; }
+        #xy-pad-container > .btn { position: sticky; bottom: -1px; z-index: 3; backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); }
+        #visual-lab { width: 100%; }
+        @media (max-width: 767px) { #xy-pad-container { bottom: 0; left: 0; width: 100%; border-radius: 24px 24px 0 0; max-height: 88vh; max-height: 88dvh; box-shadow: 0 -10px 50px rgba(0,0,0,0.72); } }
+        @media (min-width: 768px) { #xy-pad-container { top: calc(var(--safe-top) + 14px); bottom: calc(var(--safe-bottom) + 14px); right: calc(var(--safe-right) + 24px); width: min(520px, calc(100vw - 72px)); border-radius: 22px; box-shadow: 0 16px 70px rgba(0,0,0,0.62); } }
         #xy-pad-window { display: none; flex-direction: column; align-items: center; position: fixed; z-index: 2100; background: rgba(15, 15, 15, 0.95); backdrop-filter: blur(25px); -webkit-backdrop-filter: blur(25px); border: 1px solid rgba(255,255,255,0.1); padding: 20px; box-shadow: 0 10px 50px rgba(0,0,0,0.5); width: 340px; max-width: 90vw; }
         @media (max-width: 767px) { #xy-pad-window { top: 50%; left: 50%; transform: translate(-50%, -50%); border-radius: 24px; } }
         @media (min-width: 768px) { #xy-pad-window { bottom: 30px; left: 30px; border-radius: 16px; } }
@@ -176,9 +185,9 @@
         .seed-console button, .seed-console output { height: 38px; border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; background: rgba(255,255,255,0.04); color: #fff; display: flex; align-items: center; justify-content: center; }
         .seed-console button { min-width: 38px; cursor: pointer; font-size: 1rem; }
         .seed-console output { padding: 0 10px; font-variant-numeric: tabular-nums; font-size: 0.8rem; letter-spacing: 0.08em; overflow: hidden; }
-        .family-scroll { display: flex; gap: 7px; overflow-x: auto; scrollbar-width: none; padding: 0 0 12px; margin: 0 -2px 4px; }
+        .family-scroll { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 7px; padding: 0 0 10px; margin: 0 0 2px; }
         .family-scroll::-webkit-scrollbar { display: none; }
-        .family-chip { flex: 0 0 auto; border: 1px solid rgba(255,255,255,0.09); border-radius: 999px; padding: 8px 12px; background: rgba(255,255,255,0.035); color: rgba(255,255,255,0.55); font: inherit; font-size: 0.72rem; cursor: pointer; }
+        .family-chip { min-width: 0; border: 1px solid rgba(255,255,255,0.09); border-radius: 999px; padding: 8px 6px; background: rgba(255,255,255,0.035); color: rgba(255,255,255,0.55); font: inherit; font-size: 0.68rem; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .family-chip.active { color: #fff; border-color: rgba(255,255,255,0.24); background: linear-gradient(135deg, rgba(74,99,140,0.62), rgba(230,198,90,0.16)); }
         .lab-slider-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 18px; }
         .lab-slider { min-width: 0; }
@@ -202,6 +211,28 @@
             .lab-slider-grid { grid-template-columns: 1fr 1fr; gap: 12px; }
             .lab-locks, .lab-target-label, .lab-meter { display: none; }
             #xy-pad-container { padding-bottom: calc(25px + var(--safe-bottom)); }
+        }
+        @media (min-width: 768px) {
+            #three-controls > .lab-slider-grid { grid-template-columns: repeat(4, minmax(0,1fr)); gap: 9px 12px; }
+            #three-controls > .lab-slider-grid .lab-slider label { font-size: 0.62rem; letter-spacing: 0.045em; }
+            .lab-drift-panel { margin-top: 10px; padding: 10px; }
+            .lab-drift-panel .lab-slider-grid { grid-template-columns: 1fr 1fr; gap: 10px 16px; }
+            .lab-locks { margin-top: 12px; gap: 5px; }
+            .lab-locks button { padding: 6px 8px; font-size: 0.65rem; }
+            .lab-target-label { margin-top: 11px; }
+            .lab-actions { margin-top: 10px; }
+            .lab-meter { margin-top: 10px; }
+        }
+        @media (min-width: 768px) and (max-height: 720px) {
+            #xy-pad-container { padding: 14px 16px; }
+            .visual-lab-head { margin-bottom: 8px; }
+            .seed-console { margin: 6px 0 10px; }
+            .family-scroll { gap: 5px; padding-bottom: 7px; }
+            .family-chip { padding-top: 6px; padding-bottom: 6px; }
+            .lab-drift-panel > button { margin-bottom: 7px; padding-top: 6px; padding-bottom: 6px; }
+            .lab-action-note, .lab-meter { display: none; }
+            #classic-controls { margin-top: 10px; padding-top: 10px; }
+            #xy-pad-container > .btn { margin-top: 10px !important; }
         }
         @media (max-width: 520px) {
             .visual-lab-head { align-items: flex-start; }
@@ -402,6 +433,13 @@
             <button class="chip" onclick="app.setVisualMode('leere', this)">Leere</button>
             <button class="chip" onclick="app.setVisualMode('aura', this)">Aura</button>
         </div>
+        <label style="margin-left: 5px;">Pure Lab Sets</label>
+        <div class="pure-set-grid" id="pure-set-grid">
+            <button class="chip" onclick="app.loadPureSet(0,this)">Blüte</button><button class="chip" onclick="app.loadPureSet(1,this)">Spirale</button>
+            <button class="chip" onclick="app.loadPureSet(2,this)">Tunnel</button><button class="chip" onclick="app.loadPureSet(3,this)">Schleier</button>
+            <button class="chip" onclick="app.loadPureSet(4,this)">Orbit</button><button class="chip" onclick="app.loadPureSet(5,this)">Kathedrale</button>
+            <button class="chip" onclick="app.loadPureSet(6,this)">Mandala</button><button class="chip" onclick="app.loadPureSet(7,this)">Aurora</button>
+        </div>
         <label style="margin-left: 5px;">Presets</label>
         <div class="preset-scroll" id="breath-presets">
             <button class="chip" onclick="app.loadPreset('p1', this)">5.5 : 5.5</button>
@@ -522,6 +560,7 @@
                     <div class="lab-slider"><label><span>Komplexität</span><output id="lab-complexity-val">55</output></label><input id="lab-complexity" type="range" min="0.05" max="1" step="0.01" value="0.55"></div>
                     <div class="lab-slider"><label><span>Atmosphäre</span><output id="lab-atmosphere-val">45</output></label><input id="lab-atmosphere" type="range" min="0" max="1" step="0.001" value="0.45"></div>
                     <div class="lab-slider"><label><span>Rotation</span><output id="lab-rotation-val">35</output></label><input id="lab-rotation" type="range" min="-1" max="1" step="0.01" value="0.35"></div>
+                    <div class="lab-slider"><label><span>Atem-Reaktion</span><output id="lab-response-val">62</output></label><input id="lab-response" type="range" min="0" max="1" step="0.01" value="0.62"></div>
                 </div>
                 <div class="lab-drift-panel">
                     <button id="lab-drift-btn" type="button" class="chip" onclick="app.toggleDrift()"><span>Mix-Drift</span><span id="lab-drift-status" style="opacity:0.55">Aus</span></button>
@@ -540,6 +579,7 @@
                     <button id="target-complexity" type="button" class="chip active" onclick="app.toggleVisualTarget('complexity')">Komplexität</button>
                     <button id="target-atmosphere" type="button" class="chip active" onclick="app.toggleVisualTarget('atmosphere')">Atmosphäre</button>
                     <button id="target-rotation" type="button" class="chip active" onclick="app.toggleVisualTarget('rotation')">Rotation</button>
+                    <button id="target-response" type="button" class="chip active" onclick="app.toggleVisualTarget('response')">Atem-Reaktion</button>
                     <button id="target-color" type="button" class="chip active" onclick="app.toggleVisualTarget('color')">Farbe</button>
                 </div>
                 <div class="lab-actions">
@@ -600,7 +640,7 @@
                 </div>
                 <div class="info-item">
                     <span class="icon">🎛️</span>
-                    <p><strong>Unendliches Visual Lab.</strong><br>Erkunde generative Atemräume, mutiere einzelne Eigenschaften und sperre, was du behalten möchtest. Classic Canvas bleibt jederzeit verfügbar.</p>
+                    <p><strong>Unendliches Visual Lab.</strong><br>Erkunde generative Atemräume, wähle Mutationsziele oder starte mit einem ruhigen Pure Set. Classic Canvas bleibt jederzeit verfügbar.</p>
                 </div>
                 <div class="info-item">
                     <span class="icon">⚙️</span>
@@ -1107,6 +1147,16 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
         { id:'mandala', name:'Mandala', mood:'rhythmisch', ranges:{ form:[.26,.88], motion:[.3,.7], depth:[.3,.7], light:[.6,.94], complexity:[.46,.9], atmosphere:[.16,.54] } },
         { id:'aurora', name:'Aurora', mood:'fluid', ranges:{ form:[.16,.76], motion:[.38,.78], depth:[.44,.82], light:[.56,.9], complexity:[.38,.8], atmosphere:[.52,.94] } }
     ];
+    const PURE_VISUAL_SETS = [
+        { seed:0xB1006001, color:8,  form:.58, depth:.56, symmetry:.78, warp:.2 },
+        { seed:0x5A1A1002, color:34, form:.5,  depth:.7,  symmetry:.62, warp:.25 },
+        { seed:0x7000E103, color:52, form:.46, depth:.82, symmetry:.55, warp:.18 },
+        { seed:0x7E110004, color:27, form:.42, depth:.58, symmetry:.5,  warp:.32, atmosphere:.42 },
+        { seed:0x0AB17005, color:72, form:.56, depth:.68, symmetry:.7,  warp:.18 },
+        { seed:0xCA7ED006, color:84, form:.48, depth:.82, symmetry:.82, warp:.14 },
+        { seed:0xADA1A007, color:96, form:.62, depth:.52, symmetry:.88, warp:.16 },
+        { seed:0xA070A008, color:42, form:.44, depth:.64, symmetry:.58, warp:.34, atmosphere:.46 }
+    ];
 
     class InfiniteVisuals {
         constructor(canvas) {
@@ -1116,11 +1166,12 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             this.breath = 0.5;
             this.phase = 'hold-empty';
             this.pulse = 0;
+            this.turnAccent = 0;
             this.qualityScale = 1;
             this.frameSamples = [];
             this.lastFrame = performance.now();
             this.lastQualityChange = 0;
-            this.recipe = { seed: 0x51a7e1, family: 0, form: 0.63, motion: 0.58, depth: 0.68, light: 0.72, complexity: 0.62, atmosphere: 0.48, rotation: 0.35, symmetry: 0.7, warp: 0.42, density: 0.68, scale: 0.55 };
+            this.recipe = { seed: 0x51a7e1, family: 0, form: 0.63, motion: 0.58, depth: 0.68, light: 0.72, complexity: 0.62, atmosphere: 0.48, rotation: 0.35, response: 0.62, symmetry: 0.7, warp: 0.42, density: 0.68, scale: 0.55 };
             this.drift = { x: 0.5, y: 0.5 };
             this.autoYaw = 0; this.manualYaw = 0; this.manualPitch = 0;
             this.manualVelocityYaw = 0; this.manualVelocityPitch = 0; this.manualDragging = false;
@@ -1130,8 +1181,8 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             this.reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
             const memory = Number(navigator.deviceMemory || 4);
             const cores = Number(navigator.hardwareConcurrency || 4);
-            this.maxPoints = this.mobile ? (memory <= 4 ? 16000 : 23000) : (cores <= 4 ? 34000 : 48000);
-            this.minPoints = this.mobile ? 2800 : 4200;
+            this.maxPoints = this.mobile ? (memory <= 4 ? 13000 : 18000) : (cores <= 4 ? 28000 : 38000);
+            this.minPoints = this.mobile ? 1100 : 1600;
             if (!window.THREE) return;
             try { this.init(); } catch (error) { console.warn('Visual Lab unavailable; Classic Canvas remains active.', error); this.dispose(); }
         }
@@ -1147,7 +1198,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             this.root = new T.Group();
             this.scene.add(this.root);
             this.uniforms = {
-                uTime: { value: 0 }, uBreath: { value: 0.5 }, uPulse: { value: 0 },
+                uTime: { value: 0 }, uBreath: { value: 0.5 }, uPulse: { value: 0 }, uTurn: { value: 0 }, uResponse: { value: 0.62 },
                 uFamily: { value: 0 }, uFamilyB: { value: 2 }, uFamilyC: { value: 3 }, uFamilyD: { value: 7 }, uFamilyWeights: { value: new T.Vector4(1,0,0,0) }, uForm: { value: 0.5 }, uMotion: { value: 0.5 }, uDepth: { value: 0.6 },
                 uLight: { value: 0.55 }, uAtmosphere: { value: 0.45 },
                 uSymmetry: { value: 0.7 }, uWarp: { value: 0.42 }, uScale: { value: 0.55 },
@@ -1180,7 +1231,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             const vertexShader = `
                 precision highp float;
                 attribute vec4 aData;
-                uniform float uTime, uBreath, uPulse, uFamily, uFamilyB, uFamilyC, uFamilyD, uForm, uMotion, uDepth, uLight, uAtmosphere, uSymmetry, uWarp, uScale, uPointScale;
+                uniform float uTime, uBreath, uPulse, uTurn, uResponse, uFamily, uFamilyB, uFamilyC, uFamilyD, uForm, uMotion, uDepth, uLight, uAtmosphere, uSymmetry, uWarp, uScale, uPointScale;
                 uniform vec2 uDrift; uniform vec4 uFamilyWeights;
                 varying float vAlpha; varying float vHue; varying float vSpark;
                 #define PI 3.14159265359
@@ -1192,8 +1243,9 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
                     float rnd=aData.w;
                     float energy=mix(0.58,1.42,uDrift.x);
                     float space=mix(0.72,1.38,uDrift.y);
-                    float breathe=0.78+uBreath*(0.36+uForm*0.34);
-                    float speed=(0.12+uMotion*0.82)*energy;
+                    float breathSignal=(uBreath-0.5)*2.0;
+                    float breathe=1.0+breathSignal*(0.08+uForm*0.22)*uResponse;
+                    float speed=(0.12+uMotion*0.82)*energy*max(0.08,1.0-uTurn*uResponse*0.7);
                     float arms=floor(3.0+uSymmetry*9.0);
                     float cutAB=uFamilyWeights.x+uFamilyWeights.y;
                     float cutABC=cutAB+uFamilyWeights.z;
@@ -1209,7 +1261,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
                     } else if(family<2.5){
                         float tunnelZ=3.5-aData.z*(10.0+uDepth*8.0);
                         float tunnelA=angle+tunnelZ*(0.12+uWarp*0.34)+sin(tunnelZ*0.9+uTime*speed)*0.28;
-                        float tunnelR=(0.55+radius*(2.15+uForm*1.1))*(0.82+uBreath*0.32);
+                        float tunnelR=(0.55+radius*(2.15+uForm*1.1))*breathe;
                         p=vec3(cos(tunnelA)*tunnelR,sin(tunnelA)*tunnelR,tunnelZ);
                     } else if(family<3.5){
                         p=vec3(position.x*4.8,position.y*2.6,position.z*3.6*space);
@@ -1230,7 +1282,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
                     } else if(family<6.5){
                         float ring=floor(aData.y*(4.0+uSymmetry*10.0))/(4.0+uSymmetry*10.0);
                         float ma=angle+sin(angle*arms+uTime*speed*0.45)*uWarp*0.32;
-                        float mr=0.45+ring*3.9+(uBreath-0.5)*(0.3+ring*0.5);
+                        float mr=0.45+ring*3.9+breathSignal*uResponse*(0.12+ring*0.28);
                         p=vec3(cos(ma)*mr,sin(ma)*mr,z*(0.12+uDepth*0.6));
                         p.xy*=rot(uTime*speed*0.035*(0.5+ring));
                     } else {
@@ -1243,20 +1295,20 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
                     }
                     p.xy*=0.72+uScale*0.62;
                     p.z*=0.68+uDepth*0.58;
-                    p.xz*=rot(uTime*(0.008+uMotion*0.055)+(uBreath-0.5)*0.12*uWarp);
+                    p.xz*=rot(uTime*(0.008+uMotion*0.055)+breathSignal*uResponse*0.06*uWarp);
                     p.xy*=rot(sin(uTime*0.09)*uMotion*0.12);
-                    p+=normalize(p+0.001)*sin(uTime*speed+rnd*31.0)*uAtmosphere*(0.045+uWarp*0.12)*energy;
+                    p+=normalize(p+0.001)*sin(uTime*speed+rnd*31.0)*uAtmosphere*(0.022+uWarp*0.065)*energy;
                     vec4 mv=modelViewMatrix*vec4(p,1.0);
                     gl_Position=projectionMatrix*mv;
                     float perspective=clamp(250.0/max(2.0,-mv.z),0.55,5.5);
-                    gl_PointSize=(0.85+rnd*1.85+uLight*1.25+uPulse*1.8)*uPointScale*perspective*(0.82+energy*0.24);
-                    vAlpha=(0.17+rnd*0.48)*(0.62+uLight*0.48);
+                    gl_PointSize=(0.58+rnd*1.18+uLight*0.82+(uPulse*0.8+uTurn*1.35)*uResponse)*uPointScale*perspective*(0.86+energy*0.18);
+                    vAlpha=(0.12+rnd*0.34)*(0.68+uLight*0.4);
                     vHue=fract(rnd*0.72+radius*0.38+uForm*0.27+uBreath*0.12+family*0.071);
-                    vSpark=step(0.91,rnd)*(0.45+uPulse*0.55);
+                    vSpark=step(0.94,rnd)*(0.4+(uPulse*0.35+uTurn*0.72)*uResponse);
                 }`;
             const fragmentShader = `
                 precision highp float;
-                uniform vec3 uColor, uAccent, uSecond; uniform float uLight, uAtmosphere, uPulse;
+                uniform vec3 uColor, uAccent, uSecond; uniform float uLight, uAtmosphere, uPulse, uTurn, uResponse;
                 varying float vAlpha; varying float vHue; varying float vSpark;
                 void main(){
                     vec2 q=gl_PointCoord-0.5; float d=length(q);
@@ -1265,8 +1317,8 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
                     if(halo<0.01) discard;
                     vec3 color=mix(uColor,uAccent,smoothstep(0.16,0.58,vHue));
                     color=mix(color,uSecond,smoothstep(0.62,0.96,vHue)*0.72);
-                    color*=0.58+core*(0.92+uLight+uPulse*0.52+vSpark);
-                    float alpha=halo*vAlpha*(0.68+uAtmosphere*0.32)+core*vSpark*0.34;
+                    color*=0.58+core*(0.92+uLight+(uPulse*0.34+uTurn*0.62)*uResponse+vSpark);
+                    float alpha=halo*vAlpha*(0.7+uAtmosphere*0.24)+core*vSpark*0.28;
                     gl_FragColor=vec4(color,alpha);
                 }`;
             const material = new T.ShaderMaterial({ uniforms: this.uniforms, vertexShader, fragmentShader, transparent: true, depthWrite: false, blending: T.AdditiveBlending });
@@ -1279,8 +1331,8 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             const uniforms = this.uniforms;
             const material = new T.ShaderMaterial({
                 uniforms,
-                vertexShader: `uniform float uTime,uBreath,uMotion,uAtmosphere,uWarp,uForm; varying float vWave; void main(){vec3 p=position;float w=sin(p.x*(4.0+uForm*5.0)+uTime*(0.25+uMotion))+cos(p.y*(5.0+uWarp*4.0)-uTime*0.22);p+=normal*w*(0.04+uAtmosphere*0.18);p*=0.62+uBreath*0.82;vWave=w;gl_Position=projectionMatrix*modelViewMatrix*vec4(p,1.0);}`,
-                fragmentShader: `uniform vec3 uColor,uAccent,uSecond;uniform float uLight,uPulse;varying float vWave;void main(){vec3 c=mix(uColor,uAccent,0.38+vWave*0.14);c=mix(c,uSecond,max(0.0,vWave)*0.18);gl_FragColor=vec4(c,0.11+uLight*0.18+uPulse*0.14);}`,
+                vertexShader: `uniform float uTime,uBreath,uMotion,uAtmosphere,uWarp,uForm,uResponse,uTurn; varying float vWave; void main(){vec3 p=position;float pause=max(0.08,1.0-uTurn*uResponse*0.7);float w=sin(p.x*(4.0+uForm*5.0)+uTime*(0.25+uMotion)*pause)+cos(p.y*(5.0+uWarp*4.0)-uTime*0.22);p+=normal*w*(0.025+uAtmosphere*0.11);p*=1.0+(uBreath-0.5)*0.65*uResponse;vWave=w;gl_Position=projectionMatrix*modelViewMatrix*vec4(p,1.0);}`,
+                fragmentShader: `uniform vec3 uColor,uAccent,uSecond;uniform float uLight,uPulse,uTurn,uResponse;varying float vWave;void main(){vec3 c=mix(uColor,uAccent,0.38+vWave*0.14);c=mix(c,uSecond,max(0.0,vWave)*0.18);gl_FragColor=vec4(c,0.1+uLight*0.18+(uPulse*0.08+uTurn*0.16)*uResponse);}`,
                 transparent: true, wireframe: true, depthWrite: false, blending: T.AdditiveBlending
             });
             this.core = new T.Mesh(new T.IcosahedronGeometry(1.38, this.mobile ? 2 : 3), material);
@@ -1323,7 +1375,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             const u = this.uniforms;
             u.uFamily.value = this.recipe.family; u.uForm.value = this.recipe.form; u.uMotion.value = this.recipe.motion; u.uDepth.value = this.recipe.depth;
             u.uLight.value = this.recipe.light; u.uAtmosphere.value = this.recipe.atmosphere;
-            u.uSymmetry.value = this.recipe.symmetry; u.uWarp.value = this.recipe.warp; u.uScale.value = this.recipe.scale;
+            u.uResponse.value = this.recipe.response; u.uSymmetry.value = this.recipe.symmetry; u.uWarp.value = this.recipe.warp; u.uScale.value = this.recipe.scale;
             this.camera.fov = 44 + this.recipe.depth * 38; this.camera.updateProjectionMatrix();
             this.updateDrawRange();
         }
@@ -1359,6 +1411,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
         }
         setBreathState(value, phase) { this.breath = value; this.phase = phase; }
         triggerPulse(amount = 1) { this.pulse = Math.min(1.5, this.pulse + amount); }
+        triggerBreathTurn(amount = 1) { this.turnAccent = Math.min(1.35, this.turnAccent + amount); }
         setColor(primary, background) {
             this.primary = primary; this.background = background;
             if (!this.available) return;
@@ -1407,10 +1460,11 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             const u = this.uniforms;
             u.uTime.value += dt * 0.001; u.uBreath.value += (this.breath-u.uBreath.value) * Math.min(1,dt*0.012);
             this.pulse *= Math.pow(0.965, dt/16.67); u.uPulse.value = this.pulse;
+            this.turnAccent *= Math.pow(0.925, dt/16.67); u.uTurn.value = this.turnAccent;
             const family = Math.round(this.recipe.family || 0);
-            const breathScale = 0.9 + u.uBreath.value * (0.12 + this.recipe.form * 0.09);
+            const breathScale = 1 + (u.uBreath.value-0.5) * (0.1 + this.recipe.form * 0.16) * this.recipe.response;
             this.root.scale.setScalar(breathScale);
-            this.autoYaw += dt * 0.00012 * this.recipe.rotation * (0.35 + this.recipe.motion * 1.65);
+            this.autoYaw += dt * 0.00012 * this.recipe.rotation * (0.35 + this.recipe.motion * 1.65) * Math.max(0.08,1-this.turnAccent*this.recipe.response*0.68);
             if (!this.manualDragging) {
                 const frame = dt / 16.67;
                 this.manualYaw += this.manualVelocityYaw * frame;
@@ -1422,16 +1476,16 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             }
             this.root.rotation.y = this.autoYaw + this.manualYaw;
             this.root.rotation.x = this.manualPitch;
-            this.core.visible = family === 0 || family === 4 || family === 6;
+            this.core.visible = family === 0 || family === 1 || family === 4 || family === 5 || family === 6;
             this.coreGlow.visible = this.core.visible;
             this.rings.visible = family === 0 || family === 2 || family === 4 || family === 5 || family === 6;
             this.core.rotation.x += dt * 0.0001 * (0.4 + this.recipe.motion); this.core.rotation.y -= dt * 0.00014 * (0.4 + this.recipe.motion);
-            this.coreGlow.scale.setScalar(0.84 + u.uBreath.value * 0.42 + this.pulse * 0.05);
-            this.coreGlowMaterial.opacity = 0.025 + this.recipe.light * 0.055 + this.pulse * 0.025;
+            this.coreGlow.scale.setScalar(1 + (u.uBreath.value-0.5)*0.34*this.recipe.response + this.turnAccent*this.recipe.response*0.06);
+            this.coreGlowMaterial.opacity = 0.018 + this.recipe.light * 0.045 + (this.pulse*0.012+this.turnAccent*0.035)*this.recipe.response;
             this.rings.rotation.z -= dt * 0.000035 * (0.2 + this.recipe.motion * 2.0);
             this.rings.rotation.x = Math.sin(u.uTime.value*0.09) * this.recipe.depth * 0.25;
-            this.rings.scale.setScalar(0.88 + u.uBreath.value * 0.17 + this.recipe.scale * 0.1);
-            this.ringMaterial.opacity = 0.04 + this.recipe.atmosphere * 0.12 + this.pulse * 0.04;
+            this.rings.scale.setScalar(0.98 + (u.uBreath.value-0.5)*0.16*this.recipe.response + this.recipe.scale * 0.08);
+            this.ringMaterial.opacity = 0.055 + this.recipe.atmosphere * 0.1 + (this.pulse*0.018+this.turnAccent*0.045)*this.recipe.response;
             const tunnelTravel = family === 2 ? (u.uTime.value*(0.08+this.recipe.motion*0.22))%1.8 : 0;
             this.camera.position.z = 8.4 - tunnelTravel;
             this.camera.position.x = Math.sin(u.uTime.value*0.08)*this.recipe.depth*0.28*(0.4+this.drift.x);
@@ -1667,10 +1721,10 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             this.viz = new BreathVisuals(document.getElementById('viz-canvas'), visualConfig[this.qualityTier]);
             this.infiniteViz = new InfiniteVisuals(document.getElementById('three-canvas'));
             this.visualEngine = 'canvas';
-            this.visualTargets = new Set(['family','form','motion','depth','light','complexity','atmosphere','rotation','color']);
+            this.visualTargets = new Set(['family','form','motion','depth','light','complexity','atmosphere','rotation','response','color']);
             this.visualHistoryStack = [];
             this.visualHistoryIndex = -1;
-            this.visualRecipe = { seed: 0x51a7e1, family: 0, form: 0.63, motion: 0.58, depth: 0.68, light: 0.72, complexity: 0.62, atmosphere: 0.48, rotation: 0.35, symmetry: 0.7, warp: 0.42, density: 0.68, scale: 0.55 };
+            this.visualRecipe = { seed: 0x51a7e1, family: 0, form: 0.63, motion: 0.58, depth: 0.68, light: 0.72, complexity: 0.62, atmosphere: 0.48, rotation: 0.35, response: 0.62, symmetry: 0.7, warp: 0.42, density: 0.68, scale: 0.55 };
             this.audio = new GentleAudio();
             this.lastVolume = this.audio.volume;
             this.isRunning = false; this.isStarting = false; this.isReverse = false; this.abortCtrl = null; this.sessionDuration = 0; this.startTime = 0;
@@ -1903,7 +1957,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             });
             const labSliders = {
                 'lab-form': 'form', 'lab-motion': 'motion', 'lab-depth': 'depth',
-                'lab-light': 'light', 'lab-complexity': 'complexity', 'lab-atmosphere': 'atmosphere', 'lab-rotation': 'rotation'
+                'lab-light': 'light', 'lab-complexity': 'complexity', 'lab-atmosphere': 'atmosphere', 'lab-rotation': 'rotation', 'lab-response': 'response'
             };
             Object.entries(labSliders).forEach(([id, key]) => {
                 const slider = getEl(id);
@@ -2030,10 +2084,10 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
                 family: Math.max(0, Math.min(VISUAL_FAMILIES.length - 1, Math.round(Number(recipe.family) || 0))),
                 form: clamp(recipe.form), motion: clamp(recipe.motion), depth: clamp(recipe.depth),
                 light: clamp(recipe.light), complexity: Math.max(0.08, clamp(recipe.complexity)), atmosphere: clamp(recipe.atmosphere),
-                rotation: clampSigned(recipe.rotation),
+                rotation: clampSigned(recipe.rotation), response: clamp(recipe.response, 0.62),
                 symmetry: clamp(recipe.symmetry, 0.6), warp: clamp(recipe.warp, 0.4), density: clamp(recipe.density, 0.65), scale: clamp(recipe.scale, 0.55)
             };
-            ['form','motion','depth','light','complexity','atmosphere','rotation'].forEach(key => {
+            ['form','motion','depth','light','complexity','atmosphere','rotation','response'].forEach(key => {
                 const slider = document.getElementById('lab-' + key);
                 const output = document.getElementById('lab-' + key + '-val');
                 if (slider) slider.value = this.visualRecipe[key];
@@ -2081,6 +2135,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
                 next[key] = respectTargets && !this.visualTargets.has(key) ? this.visualRecipe[key] : sample(ranges[key]);
             });
             next.rotation = respectTargets && !this.visualTargets.has('rotation') ? this.visualRecipe.rotation : (0.16 + random.next() * 0.72) * (random.next() < 0.22 ? -1 : 1);
+            next.response = respectTargets && !this.visualTargets.has('response') ? this.visualRecipe.response : 0.38 + random.next() * 0.5;
             next.symmetry = structuralTarget ? 0.22 + random.next() * 0.76 : this.visualRecipe.symmetry;
             next.warp = structuralTarget ? 0.12 + random.next() * 0.72 : this.visualRecipe.warp;
             next.density = (!respectTargets || this.visualTargets.has('complexity')) ? 0.54 + random.next() * 0.42 : this.visualRecipe.density;
@@ -2100,6 +2155,22 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             this.updateDropdownOptions();
             this.updateXY(0, 0);
             this.triggerVisualPulse(0.65);
+        }
+        loadPureSet(family, element) {
+            const preset = PURE_VISUAL_SETS[family]; if (!preset) return;
+            const recipe = Object.assign({
+                family, motion:0.18, light:0.62, complexity:0.45, atmosphere:0.28,
+                rotation:0.08, response:0.6, symmetry:0.68, warp:0.2, density:0.52, scale:0.52
+            }, preset);
+            const color = recipe.color; delete recipe.color;
+            this.labPadCorners = { tl:family, tr:family, bl:family, br:family };
+            if (this.evolveActive) this.toggleDrift(false);
+            this.currentColorValue = color; document.getElementById('color-slider').value = color; this.updateThemeColor(color);
+            this.applyVisualRecipe(recipe, true);
+            this.setVisualEngine('three'); this.updateXY(0.5,0.5); this.updateDropdownOptions(); this.resetVisualOrientation();
+            document.querySelectorAll('#pure-set-grid .chip').forEach(button => button.classList.remove('active'));
+            if (element) element.classList.add('active');
+            this.triggerVisualPulse(0.35);
         }
         randomizeLabCorners(random, primary) {
             const pool = VISUAL_FAMILIES.map((_, index) => index).filter(index => index !== primary);
@@ -2163,6 +2234,9 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
         }
         triggerVisualPulse(amount = 1) {
             this.viz.triggerPulse(amount); if (this.infiniteViz) this.infiniteViz.triggerPulse(amount);
+        }
+        triggerBreathTurn(amount = 1) {
+            if (this.infiniteViz) this.infiniteViz.triggerBreathTurn(amount);
         }
         setVisualBreath(value, phase) {
             this.viz.setBreathState(value, phase); if (this.infiniteViz) this.infiniteViz.setBreathState(value, phase);
@@ -2625,6 +2699,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             
             let pType = startV < endV ? 'in' : (startV > endV ? 'out' : (startV === 1 ? 'hold-full' : 'hold-empty'));
             document.getElementById('breath-timer').setAttribute('data-phase', pType);
+            this.triggerBreathTurn(pType === 'hold-full' || pType === 'hold-empty' ? 1 : 0.72);
             
             if ((this.audio.currentType === 'bowl' || this.audio.currentType === 'bowl-high') && (pType === 'in' || pType === 'out')) {
                 let detune = pType === 'in' ? 0 : -5; if (this.audio.currentType === 'bowl-high') detune += 12;
