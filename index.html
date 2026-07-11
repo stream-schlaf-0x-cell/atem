@@ -203,7 +203,8 @@
         .lab-action.primary { background: linear-gradient(135deg, rgba(74,99,140,0.8), rgba(230,198,90,0.28)); border-color: rgba(255,255,255,0.15); }
         .lab-action-note { grid-column: 1 / -1; margin: 0 2px; color: rgba(255,255,255,0.42); font-size: 0.66rem; line-height: 1.45; text-align: center; }
         .lab-drift-panel { margin-top: 15px; padding: 12px; border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; background: rgba(0,0,0,0.14); }
-        .lab-drift-panel > button { width: 100%; display: flex; justify-content: space-between; margin-bottom: 12px; }
+        .lab-drive-toggles { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+        .lab-drive-toggles button { width: 100%; display: flex; justify-content: space-between; min-width: 0; }
         .lab-meter { margin-top: 14px; padding: 10px 12px; display: flex; justify-content: space-between; gap: 12px; border-radius: 12px; background: rgba(0,0,0,0.2); font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.08em; color: rgba(255,255,255,0.44); }
         .lab-meter span:last-child { color: rgba(255,255,255,0.75); }
         #classic-controls { margin-top: 18px; }
@@ -213,7 +214,7 @@
             #xy-pad-container { padding-bottom: calc(25px + var(--safe-bottom)); }
         }
         @media (min-width: 768px) {
-            #three-controls > .lab-slider-grid { grid-template-columns: repeat(4, minmax(0,1fr)); gap: 9px 12px; }
+            #three-controls > .lab-slider-grid { grid-template-columns: repeat(5, minmax(0,1fr)); gap: 9px 10px; }
             #three-controls > .lab-slider-grid .lab-slider label { font-size: 0.62rem; letter-spacing: 0.045em; }
             .lab-drift-panel { margin-top: 10px; padding: 10px; }
             .lab-drift-panel .lab-slider-grid { grid-template-columns: 1fr 1fr; gap: 10px 16px; }
@@ -229,7 +230,8 @@
             .seed-console { margin: 6px 0 10px; }
             .family-scroll { gap: 5px; padding-bottom: 7px; }
             .family-chip { padding-top: 6px; padding-bottom: 6px; }
-            .lab-drift-panel > button { margin-bottom: 7px; padding-top: 6px; padding-bottom: 6px; }
+            .lab-drive-toggles { margin-bottom: 7px; }
+            .lab-drive-toggles button { padding-top: 6px; padding-bottom: 6px; }
             .lab-action-note, .lab-meter { display: none; }
             #classic-controls { margin-top: 10px; padding-top: 10px; }
             #xy-pad-container > .btn { margin-top: 10px !important; }
@@ -561,12 +563,16 @@
                     <div class="lab-slider"><label><span>Atmosphäre</span><output id="lab-atmosphere-val">45</output></label><input id="lab-atmosphere" type="range" min="0" max="1" step="0.001" value="0.45"></div>
                     <div class="lab-slider"><label><span>Rotation</span><output id="lab-rotation-val">35</output></label><input id="lab-rotation" type="range" min="-1" max="1" step="0.01" value="0.35"></div>
                     <div class="lab-slider"><label><span>Atem-Reaktion</span><output id="lab-response-val">62</output></label><input id="lab-response" type="range" min="0" max="1" step="0.01" value="0.62"></div>
+                    <div class="lab-slider"><label><span>Farbvarianz</span><output id="lab-colorVariance-val">32</output></label><input id="lab-colorVariance" type="range" min="0" max="1" step="0.01" value="0.32"></div>
                 </div>
                 <div class="lab-drift-panel">
-                    <button id="lab-drift-btn" type="button" class="chip" onclick="app.toggleDrift()"><span>Mix-Drift</span><span id="lab-drift-status" style="opacity:0.55">Aus</span></button>
+                    <div class="lab-drive-toggles">
+                        <button id="lab-drift-btn" type="button" class="chip" onclick="app.toggleDrift()"><span>Visual-Drive</span><span id="lab-drift-status" style="opacity:0.55">Aus</span></button>
+                        <button id="lab-color-drift-btn" type="button" class="chip" onclick="app.toggleColorDrift()"><span>Farb-Drive</span><span id="lab-color-drift-status" style="opacity:0.55">Aus</span></button>
+                    </div>
                     <div class="lab-slider-grid">
-                        <div class="lab-slider"><label><span>Tempo</span><output id="lab-drift-speed-val">50</output></label><input id="lab-drift-speed" type="range" min="0" max="1" step="0.01" value="0.5"></div>
-                        <div class="lab-slider"><label><span>Weite</span><output id="lab-drift-range-val">65</output></label><input id="lab-drift-range" type="range" min="0" max="1" step="0.01" value="0.65"></div>
+                        <div class="lab-slider"><label><span>Visual-Rhythmus</span><output id="lab-drift-speed-val">4×</output></label><input id="lab-drift-speed" type="range" min="0.125" max="12" step="0.125" value="4"></div>
+                        <div class="lab-slider"><label><span>Farb-Rhythmus</span><output id="lab-color-drift-val">4×</output></label><input id="lab-color-drift" type="range" min="1" max="12" step="1" value="4"></div>
                     </div>
                 </div>
                 <div class="lab-target-label">Mutationsziele · aktiv wird verändert</div>
@@ -580,6 +586,7 @@
                     <button id="target-atmosphere" type="button" class="chip active" onclick="app.toggleVisualTarget('atmosphere')">Atmosphäre</button>
                     <button id="target-rotation" type="button" class="chip active" onclick="app.toggleVisualTarget('rotation')">Rotation</button>
                     <button id="target-response" type="button" class="chip active" onclick="app.toggleVisualTarget('response')">Atem-Reaktion</button>
+                    <button id="target-colorVariance" type="button" class="chip active" onclick="app.toggleVisualTarget('colorVariance')">Farbvarianz</button>
                     <button id="target-color" type="button" class="chip active" onclick="app.toggleVisualTarget('color')">Farbe</button>
                 </div>
                 <div class="lab-actions">
@@ -1167,11 +1174,12 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             this.phase = 'hold-empty';
             this.pulse = 0;
             this.turnAccent = 0;
+            this.flowTime = 0;
             this.qualityScale = 1;
             this.frameSamples = [];
             this.lastFrame = performance.now();
             this.lastQualityChange = 0;
-            this.recipe = { seed: 0x51a7e1, family: 0, form: 0.63, motion: 0.58, depth: 0.68, light: 0.72, complexity: 0.62, atmosphere: 0.48, rotation: 0.35, response: 0.62, symmetry: 0.7, warp: 0.42, density: 0.68, scale: 0.55 };
+            this.recipe = { seed: 0x51a7e1, family: 0, form: 0.63, motion: 0.58, depth: 0.68, light: 0.72, complexity: 0.62, atmosphere: 0.48, rotation: 0.35, response: 0.62, colorVariance: 0.32, symmetry: 0.7, warp: 0.42, density: 0.68, scale: 0.55 };
             this.drift = { x: 0.5, y: 0.5 };
             this.autoYaw = 0; this.manualYaw = 0; this.manualPitch = 0;
             this.manualVelocityYaw = 0; this.manualVelocityPitch = 0; this.manualDragging = false;
@@ -1198,7 +1206,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             this.root = new T.Group();
             this.scene.add(this.root);
             this.uniforms = {
-                uTime: { value: 0 }, uBreath: { value: 0.5 }, uPulse: { value: 0 }, uTurn: { value: 0 }, uResponse: { value: 0.62 },
+                uTime: { value: 0 }, uFlowTime: { value: 0 }, uBreath: { value: 0.5 }, uPulse: { value: 0 }, uTurn: { value: 0 }, uResponse: { value: 0.62 }, uColorVariance: { value: 0.32 },
                 uFamily: { value: 0 }, uFamilyB: { value: 2 }, uFamilyC: { value: 3 }, uFamilyD: { value: 7 }, uFamilyWeights: { value: new T.Vector4(1,0,0,0) }, uForm: { value: 0.5 }, uMotion: { value: 0.5 }, uDepth: { value: 0.6 },
                 uLight: { value: 0.55 }, uAtmosphere: { value: 0.45 },
                 uSymmetry: { value: 0.7 }, uWarp: { value: 0.42 }, uScale: { value: 0.55 },
@@ -1231,44 +1239,31 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             const vertexShader = `
                 precision highp float;
                 attribute vec4 aData;
-                uniform float uTime, uBreath, uPulse, uTurn, uResponse, uFamily, uFamilyB, uFamilyC, uFamilyD, uForm, uMotion, uDepth, uLight, uAtmosphere, uSymmetry, uWarp, uScale, uPointScale;
+                uniform float uTime, uFlowTime, uBreath, uPulse, uTurn, uResponse, uFamily, uFamilyB, uFamilyC, uFamilyD, uForm, uMotion, uDepth, uLight, uAtmosphere, uSymmetry, uWarp, uScale, uPointScale;
                 uniform vec2 uDrift; uniform vec4 uFamilyWeights;
                 varying float vAlpha; varying float vHue; varying float vSpark;
                 #define PI 3.14159265359
                 mat2 rot(float a){float s=sin(a),c=cos(a);return mat2(c,-s,s,c);}
-                void main(){
-                    float angle=aData.x*PI*2.0;
-                    float radius=pow(aData.y,0.64+uForm*0.5);
-                    float z=aData.z*2.0-1.0;
-                    float rnd=aData.w;
-                    float energy=mix(0.58,1.42,uDrift.x);
-                    float space=mix(0.72,1.38,uDrift.y);
-                    float breathSignal=(uBreath-0.5)*2.0;
-                    float breathe=1.0+breathSignal*(0.08+uForm*0.22)*uResponse;
-                    float speed=(0.12+uMotion*0.82)*energy*max(0.08,1.0-uTurn*uResponse*0.7);
-                    float arms=floor(3.0+uSymmetry*9.0);
-                    float cutAB=uFamilyWeights.x+uFamilyWeights.y;
-                    float cutABC=cutAB+uFamilyWeights.z;
-                    float family=rnd<uFamilyWeights.x?uFamily:(rnd<cutAB?uFamilyB:(rnd<cutABC?uFamilyC:uFamilyD));
+                vec3 visualShape(float family,vec3 base,float angle,float radius,float z,float energy,float space,float breathSignal,float breathe,float speed,float arms){
                     vec3 p;
                     if(family<0.5){
-                        float petal=0.76+sin(angle*arms+z*2.0+uTime*speed*0.38)*(0.08+uForm*0.24);
+                        float petal=0.76+sin(angle*arms+z*2.0+uFlowTime*speed*0.38)*(0.08+uForm*0.24);
                         float phi=acos(clamp(z,-1.0,1.0));
                         p=vec3(sin(phi)*cos(angle),cos(phi),sin(phi)*sin(angle))*(0.3+radius*3.5)*petal*breathe;
                     } else if(family<1.5){
-                        float spiralA=angle+radius*(5.0+uSymmetry*11.0)+uTime*speed*0.2;
+                        float spiralA=angle+radius*(5.0+uSymmetry*11.0)+uFlowTime*speed*0.2;
                         p=vec3(cos(spiralA)*radius*4.8,(z*0.34+sin(angle*arms)*0.05)*(0.25+radius)*space,sin(spiralA)*radius*4.8)*breathe;
                     } else if(family<2.5){
                         float tunnelZ=3.5-aData.z*(10.0+uDepth*8.0);
-                        float tunnelA=angle+tunnelZ*(0.12+uWarp*0.34)+sin(tunnelZ*0.9+uTime*speed)*0.28;
+                        float tunnelA=angle+tunnelZ*(0.12+uWarp*0.34)+sin(tunnelZ*0.9+uFlowTime*speed)*0.28;
                         float tunnelR=(0.55+radius*(2.15+uForm*1.1))*breathe;
                         p=vec3(cos(tunnelA)*tunnelR,sin(tunnelA)*tunnelR,tunnelZ);
                     } else if(family<3.5){
-                        p=vec3(position.x*4.8,position.y*2.6,position.z*3.6*space);
-                        p.y+=sin(p.x*(0.8+uSymmetry*1.8)+uTime*speed)*cos(p.z*(0.45+uForm)+uTime*speed*0.55)*(0.28+uWarp*1.25)*breathe;
-                        p.x+=sin(p.z*0.8+uTime*speed*0.4)*uAtmosphere*0.5;
+                        p=vec3(base.x*4.8,base.y*2.6,base.z*3.6*space);
+                        p.y+=sin(p.x*(0.8+uSymmetry*1.8)+uFlowTime*speed)*cos(p.z*(0.45+uForm)+uFlowTime*speed*0.55)*(0.28+uWarp*1.25)*breathe;
+                        p.x+=sin(p.z*0.8+uFlowTime*speed*0.4)*uAtmosphere*0.5;
                     } else if(family<4.5){
-                        float oa=angle+uTime*speed*0.16;
+                        float oa=angle+uFlowTime*speed*0.16;
                         float ob=angle*(2.0+floor(uSymmetry*3.0))+z*PI;
                         float major=1.45+uForm*1.15+sin(ob*arms)*0.12;
                         p=vec3((major+z*0.72)*cos(oa),sin(ob)*(0.46+uWarp*0.75),(major+z*0.72)*sin(oa))*breathe;
@@ -1278,26 +1273,44 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
                         float columnY=z*(2.4+uDepth*2.8);
                         float arch=pow(max(0.0,1.0-abs(z)),0.42)*(0.5+uForm*1.4);
                         p=vec3(cos(column)*(1.0+radius*2.5+arch),columnY,sin(column)*(1.0+radius*2.5+arch));
-                        p.xz*=rot(sin(columnY*0.35+uTime*speed*0.12)*uWarp*0.22);
+                        p.xz*=rot(sin(columnY*0.35+uFlowTime*speed*0.12)*uWarp*0.22);
                     } else if(family<6.5){
                         float ring=floor(aData.y*(4.0+uSymmetry*10.0))/(4.0+uSymmetry*10.0);
-                        float ma=angle+sin(angle*arms+uTime*speed*0.45)*uWarp*0.32;
+                        float ma=angle+sin(angle*arms+uFlowTime*speed*0.45)*uWarp*0.32;
                         float mr=0.45+ring*3.9+breathSignal*uResponse*(0.12+ring*0.28);
                         p=vec3(cos(ma)*mr,sin(ma)*mr,z*(0.12+uDepth*0.6));
-                        p.xy*=rot(uTime*speed*0.035*(0.5+ring));
+                        p.xy*=rot(uFlowTime*speed*0.035*(0.5+ring));
                     } else {
                         float ribbon=floor(aData.x*(3.0+uSymmetry*6.0));
-                        float ax=position.x*4.8+ribbon*0.04;
+                        float ax=base.x*4.8+ribbon*0.04;
                         float az=(ribbon-(2.0+uSymmetry*3.0))*0.5+z*1.4;
-                        float ay=position.y*2.6+sin(ax*(0.65+uForm*0.8)+uTime*speed+ribbon)*(.4+uWarp*1.1);
+                        float ay=base.y*2.6+sin(ax*(0.65+uForm*0.8)+uFlowTime*speed+ribbon)*(.4+uWarp*1.1);
                         p=vec3(ax,ay,az*space);
-                        p.x+=sin(ay*0.8+uTime*speed*0.28)*uAtmosphere*0.35;
+                        p.x+=sin(ay*0.8+uFlowTime*speed*0.28)*uAtmosphere*0.35;
                     }
+                    return p;
+                }
+                void main(){
+                    float angle=aData.x*PI*2.0;
+                    float radius=pow(aData.y,0.64+uForm*0.5);
+                    float z=aData.z*2.0-1.0;
+                    float rnd=aData.w;
+                    float energy=mix(0.58,1.42,uDrift.x);
+                    float space=mix(0.72,1.38,uDrift.y);
+                    float breathSignal=(uBreath-0.5)*2.0;
+                    float breathe=1.0+breathSignal*(0.08+uForm*0.22)*uResponse;
+                    float speed=(0.12+uMotion*0.82)*energy;
+                    float arms=floor(3.0+uSymmetry*9.0);
+                    vec3 p=visualShape(uFamily,position,angle,radius,z,energy,space,breathSignal,breathe,speed,arms)*uFamilyWeights.x;
+                    if(uFamilyWeights.y>0.0001) p+=visualShape(uFamilyB,position,angle,radius,z,energy,space,breathSignal,breathe,speed,arms)*uFamilyWeights.y;
+                    if(uFamilyWeights.z>0.0001) p+=visualShape(uFamilyC,position,angle,radius,z,energy,space,breathSignal,breathe,speed,arms)*uFamilyWeights.z;
+                    if(uFamilyWeights.w>0.0001) p+=visualShape(uFamilyD,position,angle,radius,z,energy,space,breathSignal,breathe,speed,arms)*uFamilyWeights.w;
+                    float family=uFamily*uFamilyWeights.x+uFamilyB*uFamilyWeights.y+uFamilyC*uFamilyWeights.z+uFamilyD*uFamilyWeights.w;
                     p.xy*=0.72+uScale*0.62;
                     p.z*=0.68+uDepth*0.58;
-                    p.xz*=rot(uTime*(0.008+uMotion*0.055)+breathSignal*uResponse*0.06*uWarp);
-                    p.xy*=rot(sin(uTime*0.09)*uMotion*0.12);
-                    p+=normalize(p+0.001)*sin(uTime*speed+rnd*31.0)*uAtmosphere*(0.022+uWarp*0.065)*energy;
+                    p.xz*=rot(uFlowTime*(0.008+uMotion*0.055)+breathSignal*uResponse*0.06*uWarp);
+                    p.xy*=rot(sin(uFlowTime*0.09)*uMotion*0.12);
+                    p+=normalize(p+0.001)*sin(uFlowTime*speed+rnd*31.0)*uAtmosphere*(0.022+uWarp*0.065)*energy;
                     vec4 mv=modelViewMatrix*vec4(p,1.0);
                     gl_Position=projectionMatrix*mv;
                     float perspective=clamp(250.0/max(2.0,-mv.z),0.55,5.5);
@@ -1308,15 +1321,17 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
                 }`;
             const fragmentShader = `
                 precision highp float;
-                uniform vec3 uColor, uAccent, uSecond; uniform float uLight, uAtmosphere, uPulse, uTurn, uResponse;
+                uniform vec3 uColor, uAccent, uSecond; uniform float uLight, uAtmosphere, uPulse, uTurn, uResponse, uColorVariance;
                 varying float vAlpha; varying float vHue; varying float vSpark;
                 void main(){
                     vec2 q=gl_PointCoord-0.5; float d=length(q);
                     float halo=smoothstep(0.5,0.0,d);
                     float core=smoothstep(0.2,0.0,d);
                     if(halo<0.01) discard;
-                    vec3 color=mix(uColor,uAccent,smoothstep(0.16,0.58,vHue));
-                    color=mix(color,uSecond,smoothstep(0.62,0.96,vHue)*0.72);
+                    float accentWeight=smoothstep(0.14,0.62,vHue)*uColorVariance*0.76;
+                    float secondWeight=smoothstep(0.62,0.98,vHue)*uColorVariance*0.58;
+                    vec3 color=mix(uColor,uAccent,accentWeight);
+                    color=mix(color,uSecond,secondWeight);
                     color*=0.58+core*(0.92+uLight+(uPulse*0.34+uTurn*0.62)*uResponse+vSpark);
                     float alpha=halo*vAlpha*(0.7+uAtmosphere*0.24)+core*vSpark*0.28;
                     gl_FragColor=vec4(color,alpha);
@@ -1331,8 +1346,8 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             const uniforms = this.uniforms;
             const material = new T.ShaderMaterial({
                 uniforms,
-                vertexShader: `uniform float uTime,uBreath,uMotion,uAtmosphere,uWarp,uForm,uResponse,uTurn; varying float vWave; void main(){vec3 p=position;float pause=max(0.08,1.0-uTurn*uResponse*0.7);float w=sin(p.x*(4.0+uForm*5.0)+uTime*(0.25+uMotion)*pause)+cos(p.y*(5.0+uWarp*4.0)-uTime*0.22);p+=normal*w*(0.025+uAtmosphere*0.11);p*=1.0+(uBreath-0.5)*0.65*uResponse;vWave=w;gl_Position=projectionMatrix*modelViewMatrix*vec4(p,1.0);}`,
-                fragmentShader: `uniform vec3 uColor,uAccent,uSecond;uniform float uLight,uPulse,uTurn,uResponse;varying float vWave;void main(){vec3 c=mix(uColor,uAccent,0.38+vWave*0.14);c=mix(c,uSecond,max(0.0,vWave)*0.18);gl_FragColor=vec4(c,0.1+uLight*0.18+(uPulse*0.08+uTurn*0.16)*uResponse);}`,
+                vertexShader: `uniform float uFlowTime,uBreath,uMotion,uAtmosphere,uWarp,uForm,uResponse; varying float vWave; void main(){vec3 p=position;float w=sin(p.x*(4.0+uForm*5.0)+uFlowTime*(0.25+uMotion))+cos(p.y*(5.0+uWarp*4.0)-uFlowTime*0.22);p+=normal*w*(0.025+uAtmosphere*0.11);p*=1.0+(uBreath-0.5)*0.65*uResponse;vWave=w;gl_Position=projectionMatrix*modelViewMatrix*vec4(p,1.0);}`,
+                fragmentShader: `uniform vec3 uColor,uAccent,uSecond;uniform float uLight,uPulse,uTurn,uResponse,uColorVariance;varying float vWave;void main(){vec3 c=mix(uColor,uAccent,uColorVariance*(0.34+vWave*0.1));c=mix(c,uSecond,max(0.0,vWave)*0.18*uColorVariance);gl_FragColor=vec4(c,0.1+uLight*0.18+(uPulse*0.08+uTurn*0.16)*uResponse);}`,
                 transparent: true, wireframe: true, depthWrite: false, blending: T.AdditiveBlending
             });
             this.core = new T.Mesh(new T.IcosahedronGeometry(1.38, this.mobile ? 2 : 3), material);
@@ -1375,7 +1390,8 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             const u = this.uniforms;
             u.uFamily.value = this.recipe.family; u.uForm.value = this.recipe.form; u.uMotion.value = this.recipe.motion; u.uDepth.value = this.recipe.depth;
             u.uLight.value = this.recipe.light; u.uAtmosphere.value = this.recipe.atmosphere;
-            u.uResponse.value = this.recipe.response; u.uSymmetry.value = this.recipe.symmetry; u.uWarp.value = this.recipe.warp; u.uScale.value = this.recipe.scale;
+            u.uResponse.value = this.recipe.response; u.uColorVariance.value = this.recipe.colorVariance;
+            u.uSymmetry.value = this.recipe.symmetry; u.uWarp.value = this.recipe.warp; u.uScale.value = this.recipe.scale;
             this.camera.fov = 44 + this.recipe.depth * 38; this.camera.updateProjectionMatrix();
             this.updateDrawRange();
         }
@@ -1416,9 +1432,18 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             this.primary = primary; this.background = background;
             if (!this.available) return;
             this.uniforms.uColor.value.setStyle(`rgb(${primary.r},${primary.g},${primary.b})`);
-            const accentMix = this.uniforms.uAccent.value;
-            accentMix.setStyle(`rgb(${Math.min(255,primary.r+45)},${Math.min(255,primary.g+55)},${Math.min(255,primary.b+70)})`);
-            this.uniforms.uSecond.value.copy(this.uniforms.uColor.value).offsetHSL(0.12, 0.08, 0.12);
+            const baseHsl = { h:0, s:0, l:0 };
+            this.uniforms.uColor.value.getHSL(baseHsl);
+            this.uniforms.uAccent.value.setHSL(
+                (baseHsl.h + 0.055) % 1,
+                Math.min(0.72, Math.max(0.28, baseHsl.s)),
+                Math.min(0.82, baseHsl.l + 0.18)
+            );
+            this.uniforms.uSecond.value.setHSL(
+                (baseHsl.h + 0.925) % 1,
+                Math.min(0.66, Math.max(0.22, baseHsl.s * 0.9)),
+                Math.min(0.74, baseHsl.l + 0.09)
+            );
             this.ringMaterial.color.copy(this.uniforms.uColor.value);
             this.coreGlowMaterial.color.copy(this.uniforms.uAccent.value);
             const bg = new window.THREE.Color(`rgb(${background.r},${background.g},${background.b})`);
@@ -1460,13 +1485,16 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             const u = this.uniforms;
             u.uTime.value += dt * 0.001; u.uBreath.value += (this.breath-u.uBreath.value) * Math.min(1,dt*0.012);
             this.pulse *= Math.pow(0.965, dt/16.67); u.uPulse.value = this.pulse;
-            this.turnAccent *= Math.pow(0.925, dt/16.67); u.uTurn.value = this.turnAccent;
+            this.turnAccent *= Math.pow(0.88, dt/16.67); u.uTurn.value = this.turnAccent;
+            const pauseStrength = Math.min(1, this.turnAccent * (0.2 + this.recipe.response * 2.6));
+            const flowDt = dt * (1 - pauseStrength);
+            this.flowTime += flowDt * 0.001; u.uFlowTime.value = this.flowTime;
             const family = Math.round(this.recipe.family || 0);
             const breathScale = 1 + (u.uBreath.value-0.5) * (0.1 + this.recipe.form * 0.16) * this.recipe.response;
             this.root.scale.setScalar(breathScale);
-            this.autoYaw += dt * 0.00012 * this.recipe.rotation * (0.35 + this.recipe.motion * 1.65) * Math.max(0.08,1-this.turnAccent*this.recipe.response*0.68);
+            this.autoYaw += flowDt * 0.00012 * this.recipe.rotation * (0.35 + this.recipe.motion * 1.65);
             if (!this.manualDragging) {
-                const frame = dt / 16.67;
+                const frame = flowDt / 16.67;
                 this.manualYaw += this.manualVelocityYaw * frame;
                 this.manualPitch = Math.max(-1.12, Math.min(1.12, this.manualPitch + this.manualVelocityPitch * frame));
                 const damping = Math.pow(0.88, frame);
@@ -1479,17 +1507,17 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             this.core.visible = family === 0 || family === 1 || family === 4 || family === 5 || family === 6;
             this.coreGlow.visible = this.core.visible;
             this.rings.visible = family === 0 || family === 2 || family === 4 || family === 5 || family === 6;
-            this.core.rotation.x += dt * 0.0001 * (0.4 + this.recipe.motion); this.core.rotation.y -= dt * 0.00014 * (0.4 + this.recipe.motion);
+            this.core.rotation.x += flowDt * 0.0001 * (0.4 + this.recipe.motion); this.core.rotation.y -= flowDt * 0.00014 * (0.4 + this.recipe.motion);
             this.coreGlow.scale.setScalar(1 + (u.uBreath.value-0.5)*0.34*this.recipe.response + this.turnAccent*this.recipe.response*0.06);
             this.coreGlowMaterial.opacity = 0.018 + this.recipe.light * 0.045 + (this.pulse*0.012+this.turnAccent*0.035)*this.recipe.response;
-            this.rings.rotation.z -= dt * 0.000035 * (0.2 + this.recipe.motion * 2.0);
-            this.rings.rotation.x = Math.sin(u.uTime.value*0.09) * this.recipe.depth * 0.25;
+            this.rings.rotation.z -= flowDt * 0.000035 * (0.2 + this.recipe.motion * 2.0);
+            this.rings.rotation.x = Math.sin(this.flowTime*0.09) * this.recipe.depth * 0.25;
             this.rings.scale.setScalar(0.98 + (u.uBreath.value-0.5)*0.16*this.recipe.response + this.recipe.scale * 0.08);
             this.ringMaterial.opacity = 0.055 + this.recipe.atmosphere * 0.1 + (this.pulse*0.018+this.turnAccent*0.045)*this.recipe.response;
-            const tunnelTravel = family === 2 ? (u.uTime.value*(0.08+this.recipe.motion*0.22))%1.8 : 0;
+            const tunnelTravel = family === 2 ? (this.flowTime*(0.08+this.recipe.motion*0.22))%1.8 : 0;
             this.camera.position.z = 8.4 - tunnelTravel;
-            this.camera.position.x = Math.sin(u.uTime.value*0.08)*this.recipe.depth*0.28*(0.4+this.drift.x);
-            this.camera.position.y = Math.cos(u.uTime.value*0.065)*this.recipe.warp*0.16;
+            this.camera.position.x = Math.sin(this.flowTime*0.08)*this.recipe.depth*0.28*(0.4+this.drift.x);
+            this.camera.position.y = Math.cos(this.flowTime*0.065)*this.recipe.warp*0.16;
             this.camera.lookAt(0,0,0);
             this.renderer.render(this.scene, this.camera);
             this.adaptQuality(dt, now);
@@ -1721,10 +1749,10 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             this.viz = new BreathVisuals(document.getElementById('viz-canvas'), visualConfig[this.qualityTier]);
             this.infiniteViz = new InfiniteVisuals(document.getElementById('three-canvas'));
             this.visualEngine = 'canvas';
-            this.visualTargets = new Set(['family','form','motion','depth','light','complexity','atmosphere','rotation','response','color']);
+            this.visualTargets = new Set(['family','form','motion','depth','light','complexity','atmosphere','rotation','response','colorVariance','color']);
             this.visualHistoryStack = [];
             this.visualHistoryIndex = -1;
-            this.visualRecipe = { seed: 0x51a7e1, family: 0, form: 0.63, motion: 0.58, depth: 0.68, light: 0.72, complexity: 0.62, atmosphere: 0.48, rotation: 0.35, response: 0.62, symmetry: 0.7, warp: 0.42, density: 0.68, scale: 0.55 };
+            this.visualRecipe = { seed: 0x51a7e1, family: 0, form: 0.63, motion: 0.58, depth: 0.68, light: 0.72, complexity: 0.62, atmosphere: 0.48, rotation: 0.35, response: 0.62, colorVariance: 0.32, symmetry: 0.7, warp: 0.42, density: 0.68, scale: 0.55 };
             this.audio = new GentleAudio();
             this.lastVolume = this.audio.volume;
             this.isRunning = false; this.isStarting = false; this.isReverse = false; this.abortCtrl = null; this.sessionDuration = 0; this.startTime = 0;
@@ -1739,11 +1767,11 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             this.musicalLoopOptions = [];
             this.driftWasActiveBeforeDrag = false;
             this.evolveActive = false; this.evolveCycles = 4; this.evolveProgress = 0;
-            this.labDriftRange = 0.65;
-            this.xyDriftBounds = {x1:0, x2:1, y1:0, y2:1};
+            this.driftPhaseX = 0; this.driftPhaseY = 0;
             this.colorDriftActive = false; this.colorDriftDirection = 1; this.colorDriftCycles = 4;
             this.currentColorValue = 0; this.currentPreset = ""; this.layoutState = 1;
             this.timerWorker = null; this.timerFallback = null;
+            this.idleLoopStarted = false;
             try {
                 if ('Worker' in window && 'Blob' in window && window.URL && URL.createObjectURL) {
                     const blob = new Blob(["let t;self.onmessage=e=>{if(e.data=='start'){if(t)clearInterval(t);t=setInterval(()=>postMessage('t'),25)}else{clearInterval(t)}}"], {type: 'application/javascript'});
@@ -1803,6 +1831,8 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             getEl('color-drift-val').innerText = val('color-drift-slider');
         }
         startIdleLoop() {
+            if (this.idleLoopStarted) return;
+            this.idleLoopStarted = true;
             let last = Date.now();
             const loop = () => {
                 if (!this.isRunning) {
@@ -1879,16 +1909,17 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             bindSlider('drift-slider', 'evolveCycles', 'drift-val');
             bindSlider('color-drift-slider', 'colorDriftCycles', 'color-drift-val');
             const labDriftSpeed = getEl('lab-drift-speed');
-            const labDriftRange = getEl('lab-drift-range');
+            const labColorDrift = getEl('lab-color-drift');
+            const formatRhythm = value => value === 0.125 ? '1/8×' : value === 0.25 ? '1/4×' : value === 0.5 ? '1/2×' : value === 0.75 ? '3/4×' : `${Number(value).toFixed(value%1 ? 3 : 0).replace(/0+$/,'').replace(/\.$/,'')}×`;
             labDriftSpeed.addEventListener('input', () => {
-                const value = parseFloat(labDriftSpeed.value); this.evolveCycles = 8.125 - value * 8;
-                getEl('lab-drift-speed-val').value = Math.round(value * 100);
-                getEl('drift-slider').value = this.evolveCycles;
+                const value = parseFloat(labDriftSpeed.value); this.evolveCycles = value;
+                getEl('lab-drift-speed-val').value = formatRhythm(value);
+                getEl('drift-slider').value = value; getEl('drift-val').innerText = formatRhythm(value).replace('×','');
             }, { passive:true });
-            labDriftRange.addEventListener('input', () => {
-                this.labDriftRange = parseFloat(labDriftRange.value);
-                getEl('lab-drift-range-val').value = Math.round(this.labDriftRange * 100);
-                if (this.evolveActive) this.updateDriftBounds(false);
+            labColorDrift.addEventListener('input', () => {
+                const value = parseFloat(labColorDrift.value); this.colorDriftCycles = value;
+                getEl('lab-color-drift-val').value = `${value}×`;
+                getEl('color-drift-slider').value = value; getEl('color-drift-val').innerText = value;
             }, { passive:true });
             this.padElement = getEl('xy-pad');
             this.padElement.addEventListener('pointerdown', (e) => {
@@ -1947,17 +1978,19 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             const dSlider = getEl('drift-slider'); dSlider.min = "0.125"; dSlider.step = "0.125";
             dSlider.addEventListener('input', (e) => {
                 const v = parseFloat(e.target.value); const label = getEl('drift-val');
-                const speed = Math.max(0, Math.min(1, (8.125 - v) / 8));
-                labDriftSpeed.value = speed; getEl('lab-drift-speed-val').value = Math.round(speed * 100);
+                labDriftSpeed.value = v; getEl('lab-drift-speed-val').value = formatRhythm(v);
                 if (Math.abs(v - 0.125) < 0.001) label.innerText = "1/8";
                 else if (Math.abs(v - 0.25) < 0.001) label.innerText = "1/4";
                 else if (Math.abs(v - 0.5) < 0.001) label.innerText = "1/2";
                 else if (Math.abs(v - 0.75) < 0.001) label.innerText = "3/4";
                 else label.innerText = v;
             });
+            getEl('color-drift-slider').addEventListener('input', event => {
+                const value = parseFloat(event.target.value); labColorDrift.value = value; getEl('lab-color-drift-val').value = `${value}×`;
+            }, { passive:true });
             const labSliders = {
                 'lab-form': 'form', 'lab-motion': 'motion', 'lab-depth': 'depth',
-                'lab-light': 'light', 'lab-complexity': 'complexity', 'lab-atmosphere': 'atmosphere', 'lab-rotation': 'rotation', 'lab-response': 'response'
+                'lab-light': 'light', 'lab-complexity': 'complexity', 'lab-atmosphere': 'atmosphere', 'lab-rotation': 'rotation', 'lab-response': 'response', 'lab-colorVariance': 'colorVariance'
             };
             Object.entries(labSliders).forEach(([id, key]) => {
                 const slider = getEl(id);
@@ -2084,10 +2117,10 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
                 family: Math.max(0, Math.min(VISUAL_FAMILIES.length - 1, Math.round(Number(recipe.family) || 0))),
                 form: clamp(recipe.form), motion: clamp(recipe.motion), depth: clamp(recipe.depth),
                 light: clamp(recipe.light), complexity: Math.max(0.08, clamp(recipe.complexity)), atmosphere: clamp(recipe.atmosphere),
-                rotation: clampSigned(recipe.rotation), response: clamp(recipe.response, 0.62),
+                rotation: clampSigned(recipe.rotation), response: clamp(recipe.response, 0.62), colorVariance: clamp(recipe.colorVariance, 0.32),
                 symmetry: clamp(recipe.symmetry, 0.6), warp: clamp(recipe.warp, 0.4), density: clamp(recipe.density, 0.65), scale: clamp(recipe.scale, 0.55)
             };
-            ['form','motion','depth','light','complexity','atmosphere','rotation','response'].forEach(key => {
+            ['form','motion','depth','light','complexity','atmosphere','rotation','response','colorVariance'].forEach(key => {
                 const slider = document.getElementById('lab-' + key);
                 const output = document.getElementById('lab-' + key + '-val');
                 if (slider) slider.value = this.visualRecipe[key];
@@ -2136,6 +2169,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             });
             next.rotation = respectTargets && !this.visualTargets.has('rotation') ? this.visualRecipe.rotation : (0.16 + random.next() * 0.72) * (random.next() < 0.22 ? -1 : 1);
             next.response = respectTargets && !this.visualTargets.has('response') ? this.visualRecipe.response : 0.38 + random.next() * 0.5;
+            next.colorVariance = respectTargets && !this.visualTargets.has('colorVariance') ? this.visualRecipe.colorVariance : 0.08 + random.next() * 0.66;
             next.symmetry = structuralTarget ? 0.22 + random.next() * 0.76 : this.visualRecipe.symmetry;
             next.warp = structuralTarget ? 0.12 + random.next() * 0.72 : this.visualRecipe.warp;
             next.density = (!respectTargets || this.visualTargets.has('complexity')) ? 0.54 + random.next() * 0.42 : this.visualRecipe.density;
@@ -2160,7 +2194,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             const preset = PURE_VISUAL_SETS[family]; if (!preset) return;
             const recipe = Object.assign({
                 family, motion:0.18, light:0.62, complexity:0.45, atmosphere:0.28,
-                rotation:0.08, response:0.6, symmetry:0.68, warp:0.2, density:0.52, scale:0.52
+                rotation:0.08, response:0.6, colorVariance:0.18, symmetry:0.68, warp:0.2, density:0.52, scale:0.52
             }, preset);
             const color = recipe.color; delete recipe.color;
             this.labPadCorners = { tl:family, tr:family, bl:family, br:family };
@@ -2285,7 +2319,8 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             const a = ranked[0], b = ranked[1];
             const mix = b.weight > 0 ? b.weight / Math.max(0.0001, a.weight + b.weight) : 0;
             this.visualMixState = { a:a.family, b:b.family, mix };
-            this.infiniteViz.setFamilyMix(corners, weights);
+            const active = ranked.slice(0, 4);
+            this.infiniteViz.setFamilyMix(active.map(item => item.family), active.map(item => item.weight));
             this.visualRecipe.family = a.family;
             this.updateFamilySelector();
             this.updateVisualFamily();
@@ -2294,21 +2329,22 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             this.isReverse = !this.isReverse;
             document.getElementById('reverse-mode-btn').classList.toggle('active', this.isReverse);
         }
+        getBreathCycleDuration() {
+            const read = id => Math.max(0, parseFloat(document.getElementById(id).value) || 0);
+            return Math.max(0.2, read('inTime') + read('holdFullTime') + read('outTime') + read('holdEmptyTime'));
+        }
         updateDrift(dt) {
+            const cycleDur = this.getBreathCycleDuration();
             if (this.evolveActive) {
-                const cycleDur = parseFloat(this.cachedInTimeEl.value) * 2 + 2;
-                const step = dt / (cycleDur * this.evolveCycles);
-                this.evolveProgress = (this.evolveProgress + step) % 4;
-                const b = this.xyDriftBounds, p = this.evolveProgress; let dx, dy;
-                if (p < 1) { dx = b.x1 + p * (b.x2 - b.x1); dy = b.y1; }
-                else if (p < 2) { dx = b.x2; dy = b.y1 + (p - 1) * (b.y2 - b.y1); }
-                else if (p < 3) { dx = b.x2 - (p - 2) * (b.x2 - b.x1); dy = b.y2; }
-                else { dx = b.x1; dy = b.y2 - (p - 3) * (b.y2 - b.y1); }
-                this.updateXY(dx, dy);
+                const step = dt / (cycleDur * Math.max(0.125, this.evolveCycles));
+                this.evolveProgress = (this.evolveProgress + step) % 1;
+                const angle = this.evolveProgress * Math.PI * 2;
+                const dx = 0.5 + 0.5 * Math.sin(this.driftPhaseX + angle);
+                const dy = 0.5 + 0.5 * Math.sin(this.driftPhaseY + angle * 2);
+                this.updateXY(Math.max(0, Math.min(1, dx)), Math.max(0, Math.min(1, dy)));
             }
             if (this.colorDriftActive) {
-                const cycleDur = parseFloat(this.cachedInTimeEl.value) * 2;
-                const speed = 25 / (this.colorDriftCycles * cycleDur);
+                const speed = 100 / (Math.max(1, this.colorDriftCycles) * cycleDur);
                 this.currentColorValue += speed * dt * this.colorDriftDirection;
                 if (this.currentColorValue >= 100) { this.currentColorValue = 100; this.colorDriftDirection = -1; }
                 if (this.currentColorValue <= 0) { this.currentColorValue = 0; this.colorDriftDirection = 1; }
@@ -2462,35 +2498,27 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
         }
 
         toggleDrift(state) {
-            this.evolveActive = state !== undefined ? state : !this.evolveActive;
-            if (this.evolveActive) this.updateDriftBounds(true);
+            const next = state !== undefined ? Boolean(state) : !this.evolveActive;
+            if (next && !this.evolveActive) {
+                const clampSigned = value => Math.max(-1, Math.min(1, value * 2 - 1));
+                this.evolveProgress = 0;
+                this.driftPhaseX = Math.asin(clampSigned(this.currentX));
+                this.driftPhaseY = Math.asin(clampSigned(this.currentY));
+            }
+            this.evolveActive = next;
             document.getElementById('drift-btn').classList.toggle('active', this.evolveActive);
             document.getElementById('drift-status').innerText = this.evolveActive ? "Ein" : "Aus";
             document.getElementById('drift-controls').style.display = this.evolveActive ? 'block' : 'none';
             document.getElementById('lab-drift-btn').classList.toggle('active', this.evolveActive);
             document.getElementById('lab-drift-status').innerText = this.evolveActive ? "Ein" : "Aus";
         }
-        updateDriftBounds(projectCurrent = false) {
-            const half = 0.08 + Math.max(0, Math.min(1, this.labDriftRange)) * 0.42;
-            this.xyDriftBounds = { x1:0.5-half, x2:0.5+half, y1:0.5-half, y2:0.5+half };
-            if (!projectCurrent) return;
-            const b = this.xyDriftBounds, w = b.x2-b.x1, h = b.y2-b.y1;
-            const clamp = (v,min,max) => Math.max(min,Math.min(max,v));
-            const cx=this.currentX, cy=this.currentY;
-            const candidates = [
-                {x:clamp(cx,b.x1,b.x2),y:b.y1,p:(clamp(cx,b.x1,b.x2)-b.x1)/w},
-                {x:b.x2,y:clamp(cy,b.y1,b.y2),p:1+(clamp(cy,b.y1,b.y2)-b.y1)/h},
-                {x:clamp(cx,b.x1,b.x2),y:b.y2,p:2+(b.x2-clamp(cx,b.x1,b.x2))/w},
-                {x:b.x1,y:clamp(cy,b.y1,b.y2),p:3+(b.y2-clamp(cy,b.y1,b.y2))/h}
-            ];
-            candidates.sort((a,b2)=>(a.x-cx)**2+(a.y-cy)**2-((b2.x-cx)**2+(b2.y-cy)**2));
-            this.evolveProgress = candidates[0].p;
-        }
         toggleColorDrift() {
             this.colorDriftActive = !this.colorDriftActive;
             document.getElementById('color-drift-btn').classList.toggle('active', this.colorDriftActive);
             document.getElementById('color-drift-status').innerText = this.colorDriftActive ? "Ein" : "Aus";
             document.getElementById('color-drift-controls').style.display = this.colorDriftActive ? 'block' : 'none';
+            document.getElementById('lab-color-drift-btn').classList.toggle('active', this.colorDriftActive);
+            document.getElementById('lab-color-drift-status').innerText = this.colorDriftActive ? "Ein" : "Aus";
         }
         loadPreset(k, el, syncAudio = true, preserveSound = false) {
             this._resetTapperState();
@@ -2699,7 +2727,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             
             let pType = startV < endV ? 'in' : (startV > endV ? 'out' : (startV === 1 ? 'hold-full' : 'hold-empty'));
             document.getElementById('breath-timer').setAttribute('data-phase', pType);
-            this.triggerBreathTurn(pType === 'hold-full' || pType === 'hold-empty' ? 1 : 0.72);
+            this.triggerBreathTurn(pType === 'hold-full' || pType === 'hold-empty' ? 0.62 : 0.52);
             
             if ((this.audio.currentType === 'bowl' || this.audio.currentType === 'bowl-high') && (pType === 'in' || pType === 'out')) {
                 let detune = pType === 'in' ? 0 : -5; if (this.audio.currentType === 'bowl-high') detune += 12;
