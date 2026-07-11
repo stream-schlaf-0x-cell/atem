@@ -48,7 +48,7 @@
         .viz-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; z-index: 0; transition: opacity 0.8s ease; }
         #three-canvas { z-index: 1; opacity: 0; pointer-events: none; }
         body.three-active #three-canvas { opacity: 1; }
-        body.three-active #viz-canvas { opacity: 0; }
+        body.three-active #viz-canvas { z-index: 2; opacity: 0.46; pointer-events: none; mix-blend-mode: screen; }
         body.three-active #visual-area { cursor: grab; touch-action: none; }
         body.visual-rotating #visual-area { cursor: grabbing; user-select: none; -webkit-user-select: none; }
         .instruction-text {
@@ -737,7 +737,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     /* --- V4 VISUAL ENGINE: V3 structure + V2 rendering soul --- */
     class BreathVisuals {
         constructor(canvas, config) {
-            this.canvas = canvas; this.ctx = this.canvas.getContext('2d', { alpha: false, desynchronized: true });
+            this.canvas = canvas; this.ctx = this.canvas.getContext('2d', { alpha: true, desynchronized: true });
             this.noise = new SimplexNoise();
             this.config = config; this.dpr = this.config.dpr;
             this.width = 0; this.height = 0; this.centerX = 0; this.centerY = 0;
@@ -752,6 +752,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             this.lastFrameTime = performance.now();
             this.lowFpsFrames = 0;
             this.performanceLock = false;
+            this.active = true; this.hybridActive = false; this.lastHybridFrame = 0;
             this.pCount = this.config.particleCount;
             this.initArrays();
             this.particleSprite = null; this.particleSpriteColor = ''; this.initParticles = false;
@@ -774,7 +775,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             this.p_size = new Float32Array(this.pCount); this.p_baseAlpha = new Float32Array(this.pCount);
         }
         setConfig(config) {
-            this.config = config; this.dpr = this.config.dpr;
+            this.config = config; this.dpr = this.hybridActive ? 1 : this.config.dpr;
             if (this.pCount !== this.config.particleCount) {
                 this.pCount = this.config.particleCount;
                 this.initArrays(); this.initParticles = false;
@@ -834,9 +835,26 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             // Hardwarebeschleunigter Boost: max. +100% Sättigung und +30% Helligkeit (gecapt)
             this.canvas.style.filter = `saturate(${100 + v * 100}%) brightness(${100 + v * 30}%)`;
         }
+        setActive(active, hybrid = false) {
+            this.active = Boolean(active); this.hybridActive = Boolean(this.active && hybrid);
+            this.dpr = this.hybridActive ? 1 : this.config.dpr;
+            if (this.active) this.resize();
+            this.lastFrameTime = performance.now(); this.lastHybridFrame = 0; this.lowFpsFrames = 0;
+            this.ctx.globalCompositeOperation = 'source-over';
+            if (this.hybridActive) {
+                this.ctx.clearRect(0, 0, this.width, this.height);
+            } else if (this.active) {
+                this.ctx.fillStyle = `rgb(${this.bgR || 10},${this.bgG || 10},${this.bgB || 10})`;
+                this.ctx.fillRect(0, 0, this.width, this.height);
+            }
+        }
 
         animate() {
+            requestAnimationFrame(() => this.animate());
             const now = performance.now();
+            if (!this.active || document.hidden) { this.lastFrameTime = now; return; }
+            if (this.hybridActive && now - this.lastHybridFrame < 50) return;
+            if (this.hybridActive) this.lastHybridFrame = now;
             const dt = now - this.lastFrameTime;
             this.lastFrameTime = now;
             if (dt > 40) {
@@ -844,7 +862,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             } else {
                 this.lowFpsFrames = Math.max(0, this.lowFpsFrames - 1);
             }
-            if (this.lowFpsFrames > 45 && window.app && window.app.qualityTier === 'highQuality' && !this.performanceLock) {
+            if (!this.hybridActive && this.lowFpsFrames > 45 && window.app && window.app.qualityTier === 'highQuality' && !this.performanceLock) {
                 this.lowFpsFrames = 0;
                 this.performanceLock = true;
                 window.app.toggleQuality();
@@ -855,7 +873,6 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
                     setTimeout(() => { if (inst.innerText === "Auto-Performance Modus (FPS Drop)") inst.innerText = oldText; }, 3000);
                 }
             }
-            requestAnimationFrame(() => this.animate());
             // Audio reactivity from V3
             this.audioBass = 0;
             if (window.app && window.app.audio) {
@@ -870,8 +887,11 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
 
             /* V4 BACKGROUND: V2's simple fixed-alpha trail fade */
             this.ctx.globalCompositeOperation = 'source-over';
-            this.ctx.fillStyle = `rgba(${safeR}, ${safeG}, ${safeB}, ${this.config.mistAlpha})`;
-            this.ctx.fillRect(0, 0, this.width, this.height);
+            if (this.hybridActive) this.ctx.clearRect(0, 0, this.width, this.height);
+            else {
+                this.ctx.fillStyle = `rgba(${safeR}, ${safeG}, ${safeB}, ${this.config.mistAlpha})`;
+                this.ctx.fillRect(0, 0, this.width, this.height);
+            }
 
             /* V4 BLEND MODE: V2's consistent 'lighter' compositing */
             this.ctx.globalCompositeOperation = 'lighter';
@@ -887,7 +907,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             /* V4: V2-style pulseBoost calculation (tapPulse weighted by breathValue) */
             const pulseBoost = this.tapPulse * 0.4 * (0.4 + 0.6 * this.breathValue) + (this.audioBass * 0.3 * this.intensity);
 
-            if (this.weights.mist > 0.01) this.renderMist(this.weights.mist, pulseBoost);
+            if (!this.hybridActive && this.weights.mist > 0.01) this.renderMist(this.weights.mist, pulseBoost);
             if (this.weights.leere > 0.01) this.renderLeere(this.weights.leere, pulseBoost);
             // V4: Aura rendered with source-over and dimmed, matching V2's subtle dark aesthetic
             if (this.weights.aura > 0.01) {
@@ -1175,10 +1195,12 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             this.pulse = 0;
             this.turnAccent = 0;
             this.flowTime = 0;
-            this.qualityScale = 1;
+            this.qualityScale = 0.85;
             this.frameSamples = [];
             this.lastFrame = performance.now();
+            this.lastRenderTime = 0;
             this.lastQualityChange = 0;
+            this.goodQualityWindows = 0;
             this.recipe = { seed: 0x51a7e1, family: 0, form: 0.63, motion: 0.58, depth: 0.68, light: 0.72, complexity: 0.62, atmosphere: 0.48, rotation: 0.35, response: 0.62, colorVariance: 0.32, symmetry: 0.7, warp: 0.42, density: 0.68, scale: 0.55 };
             this.drift = { x: 0.5, y: 0.5 };
             this.autoYaw = 0; this.manualYaw = 0; this.manualPitch = 0;
@@ -1189,8 +1211,11 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             this.reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
             const memory = Number(navigator.deviceMemory || 4);
             const cores = Number(navigator.hardwareConcurrency || 4);
-            this.maxPoints = this.mobile ? (memory <= 4 ? 13000 : 18000) : (cores <= 4 ? 28000 : 38000);
-            this.minPoints = this.mobile ? 1100 : 1600;
+            this.maxPoints = this.mobile ? (memory <= 4 ? 11000 : 15000) : (cores <= 4 ? 20000 : 28000);
+            this.minPoints = this.mobile ? 900 : 1200;
+            this.qualityScale = this.mobile ? (memory <= 4 ? 0.68 : 0.76) : (cores <= 4 ? 0.76 : 0.86);
+            this.layerFamilies = [0, 2, 3, 7]; this.layerWeights = [1, 0, 0, 0];
+            this.particleLayers = []; this.currentPointCount = 0; this.coreBlend = 1; this.ringBlend = 1;
             if (!window.THREE) return;
             try { this.init(); } catch (error) { console.warn('Visual Lab unavailable; Classic Canvas remains active.', error); this.dispose(); }
         }
@@ -1206,8 +1231,8 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             this.root = new T.Group();
             this.scene.add(this.root);
             this.uniforms = {
-                uTime: { value: 0 }, uFlowTime: { value: 0 }, uBreath: { value: 0.5 }, uPulse: { value: 0 }, uTurn: { value: 0 }, uResponse: { value: 0.62 }, uColorVariance: { value: 0.32 },
-                uFamily: { value: 0 }, uFamilyB: { value: 2 }, uFamilyC: { value: 3 }, uFamilyD: { value: 7 }, uFamilyWeights: { value: new T.Vector4(1,0,0,0) }, uForm: { value: 0.5 }, uMotion: { value: 0.5 }, uDepth: { value: 0.6 },
+                uTime: { value: 0 }, uFlowTime: { value: 0 }, uBreath: { value: 0.5 }, uPulse: { value: 0 }, uTurn: { value: 0 }, uResponse: { value: 0.62 }, uColorVariance: { value: 0.32 }, uCoreWeight: { value: 1 },
+                uFamily: { value: 0 }, uForm: { value: 0.5 }, uMotion: { value: 0.5 }, uDepth: { value: 0.6 },
                 uLight: { value: 0.55 }, uAtmosphere: { value: 0.45 },
                 uSymmetry: { value: 0.7 }, uWarp: { value: 0.42 }, uScale: { value: 0.55 },
                 uDrift: { value: new T.Vector2(0.5, 0.5) },
@@ -1232,15 +1257,11 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
         }
         buildParticles() {
             const T = window.THREE;
-            const geometry = new T.BufferGeometry();
-            geometry.setAttribute('position', new T.BufferAttribute(new Float32Array(this.maxPoints * 3), 3));
-            geometry.setAttribute('aData', new T.BufferAttribute(new Float32Array(this.maxPoints * 4), 4));
-            geometry.setDrawRange(0, this.minPoints);
             const vertexShader = `
                 precision highp float;
                 attribute vec4 aData;
-                uniform float uTime, uFlowTime, uBreath, uPulse, uTurn, uResponse, uFamily, uFamilyB, uFamilyC, uFamilyD, uForm, uMotion, uDepth, uLight, uAtmosphere, uSymmetry, uWarp, uScale, uPointScale;
-                uniform vec2 uDrift; uniform vec4 uFamilyWeights;
+                uniform float uFlowTime, uBreath, uPulse, uTurn, uResponse, uFamily, uLayerWeight, uForm, uMotion, uDepth, uLight, uAtmosphere, uSymmetry, uWarp, uScale, uPointScale;
+                uniform vec2 uDrift;
                 varying float vAlpha; varying float vHue; varying float vSpark;
                 #define PI 3.14159265359
                 mat2 rot(float a){float s=sin(a),c=cos(a);return mat2(c,-s,s,c);}
@@ -1301,11 +1322,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
                     float breathe=1.0+breathSignal*(0.08+uForm*0.22)*uResponse;
                     float speed=(0.12+uMotion*0.82)*energy;
                     float arms=floor(3.0+uSymmetry*9.0);
-                    vec3 p=visualShape(uFamily,position,angle,radius,z,energy,space,breathSignal,breathe,speed,arms)*uFamilyWeights.x;
-                    if(uFamilyWeights.y>0.0001) p+=visualShape(uFamilyB,position,angle,radius,z,energy,space,breathSignal,breathe,speed,arms)*uFamilyWeights.y;
-                    if(uFamilyWeights.z>0.0001) p+=visualShape(uFamilyC,position,angle,radius,z,energy,space,breathSignal,breathe,speed,arms)*uFamilyWeights.z;
-                    if(uFamilyWeights.w>0.0001) p+=visualShape(uFamilyD,position,angle,radius,z,energy,space,breathSignal,breathe,speed,arms)*uFamilyWeights.w;
-                    float family=uFamily*uFamilyWeights.x+uFamilyB*uFamilyWeights.y+uFamilyC*uFamilyWeights.z+uFamilyD*uFamilyWeights.w;
+                    vec3 p=visualShape(uFamily,position,angle,radius,z,energy,space,breathSignal,breathe,speed,arms);
                     p.xy*=0.72+uScale*0.62;
                     p.z*=0.68+uDepth*0.58;
                     p.xz*=rot(uFlowTime*(0.008+uMotion*0.055)+breathSignal*uResponse*0.06*uWarp);
@@ -1314,9 +1331,10 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
                     vec4 mv=modelViewMatrix*vec4(p,1.0);
                     gl_Position=projectionMatrix*mv;
                     float perspective=clamp(250.0/max(2.0,-mv.z),0.55,5.5);
-                    gl_PointSize=(0.58+rnd*1.18+uLight*0.82+(uPulse*0.8+uTurn*1.35)*uResponse)*uPointScale*perspective*(0.86+energy*0.18);
-                    vAlpha=(0.12+rnd*0.34)*(0.68+uLight*0.4);
-                    vHue=fract(rnd*0.72+radius*0.38+uForm*0.27+uBreath*0.12+family*0.071);
+                    float layerFade=smoothstep(0.0,0.035,uLayerWeight)*(0.12+0.88*sqrt(max(0.0,uLayerWeight)));
+                    gl_PointSize=(0.58+rnd*1.18+uLight*0.82+(uPulse*0.8+uTurn*1.35)*uResponse)*uPointScale*perspective*(0.86+energy*0.18)*(0.78+sqrt(max(0.0,uLayerWeight))*0.22);
+                    vAlpha=(0.12+rnd*0.34)*(0.68+uLight*0.4)*layerFade;
+                    vHue=fract(rnd*0.74+radius*0.41+uForm*0.19+uBreath*0.08+uFamily*0.071);
                     vSpark=step(0.94,rnd)*(0.4+(uPulse*0.35+uTurn*0.72)*uResponse);
                 }`;
             const fragmentShader = `
@@ -1328,18 +1346,32 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
                     float halo=smoothstep(0.5,0.0,d);
                     float core=smoothstep(0.2,0.0,d);
                     if(halo<0.01) discard;
-                    float accentWeight=smoothstep(0.14,0.62,vHue)*uColorVariance*0.76;
-                    float secondWeight=smoothstep(0.62,0.98,vHue)*uColorVariance*0.58;
+                    float variance=sqrt(clamp(uColorVariance,0.0,1.0));
+                    float colorWave=sin(vHue*6.28318530718);
+                    float accentWeight=smoothstep(0.05,0.95,colorWave*0.5+0.5)*variance*(0.28+variance*0.42);
+                    float secondWeight=smoothstep(0.05,0.95,-colorWave*0.5+0.5)*variance*(0.2+variance*0.32);
                     vec3 color=mix(uColor,uAccent,accentWeight);
                     color=mix(color,uSecond,secondWeight);
                     color*=0.58+core*(0.92+uLight+(uPulse*0.34+uTurn*0.62)*uResponse+vSpark);
                     float alpha=halo*vAlpha*(0.7+uAtmosphere*0.24)+core*vSpark*0.28;
                     gl_FragColor=vec4(color,alpha);
                 }`;
-            const material = new T.ShaderMaterial({ uniforms: this.uniforms, vertexShader, fragmentShader, transparent: true, depthWrite: false, blending: T.AdditiveBlending });
-            this.particles = new T.Points(geometry, material);
-            this.particles.frustumCulled = false;
-            this.root.add(this.particles);
+            for (let layerIndex = 0; layerIndex < 4; layerIndex++) {
+                const geometry = new T.BufferGeometry();
+                geometry.setAttribute('position', new T.BufferAttribute(new Float32Array(this.maxPoints * 3), 3));
+                geometry.setAttribute('aData', new T.BufferAttribute(new Float32Array(this.maxPoints * 4), 4));
+                geometry.setDrawRange(0, 0);
+                const layerUniforms = Object.assign({}, this.uniforms, {
+                    uFamily: { value: this.layerFamilies[layerIndex] },
+                    uLayerWeight: { value: this.layerWeights[layerIndex] }
+                });
+                const material = new T.ShaderMaterial({ uniforms: layerUniforms, vertexShader, fragmentShader, transparent: true, depthWrite: false, blending: T.AdditiveBlending });
+                const points = new T.Points(geometry, material);
+                points.frustumCulled = false; points.visible = layerIndex === 0;
+                this.root.add(points);
+                this.particleLayers.push({ geometry, material, points, uniforms: layerUniforms });
+            }
+            this.particles = this.particleLayers[0].points;
         }
         buildCore() {
             const T = window.THREE;
@@ -1347,7 +1379,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             const material = new T.ShaderMaterial({
                 uniforms,
                 vertexShader: `uniform float uFlowTime,uBreath,uMotion,uAtmosphere,uWarp,uForm,uResponse; varying float vWave; void main(){vec3 p=position;float w=sin(p.x*(4.0+uForm*5.0)+uFlowTime*(0.25+uMotion))+cos(p.y*(5.0+uWarp*4.0)-uFlowTime*0.22);p+=normal*w*(0.025+uAtmosphere*0.11);p*=1.0+(uBreath-0.5)*0.65*uResponse;vWave=w;gl_Position=projectionMatrix*modelViewMatrix*vec4(p,1.0);}`,
-                fragmentShader: `uniform vec3 uColor,uAccent,uSecond;uniform float uLight,uPulse,uTurn,uResponse,uColorVariance;varying float vWave;void main(){vec3 c=mix(uColor,uAccent,uColorVariance*(0.34+vWave*0.1));c=mix(c,uSecond,max(0.0,vWave)*0.18*uColorVariance);gl_FragColor=vec4(c,0.1+uLight*0.18+(uPulse*0.08+uTurn*0.16)*uResponse);}`,
+                fragmentShader: `uniform vec3 uColor,uAccent,uSecond;uniform float uLight,uPulse,uTurn,uResponse,uColorVariance,uCoreWeight;varying float vWave;void main(){float variance=sqrt(clamp(uColorVariance,0.0,1.0));vec3 c=mix(uColor,uAccent,variance*(0.28+max(0.0,vWave)*0.16));c=mix(c,uSecond,max(0.0,-vWave)*0.16*variance);gl_FragColor=vec4(c,(0.1+uLight*0.18+(uPulse*0.08+uTurn*0.16)*uResponse)*uCoreWeight);}`,
                 transparent: true, wireframe: true, depthWrite: false, blending: T.AdditiveBlending
             });
             this.core = new T.Mesh(new T.IcosahedronGeometry(1.38, this.mobile ? 2 : 3), material);
@@ -1369,18 +1401,20 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             this.root.add(this.rings);
         }
         reseed(seed) {
-            if (!this.particles) return;
+            if (!this.particleLayers.length) return;
             this.recipe.seed = seed >>> 0;
-            const random = new SeededRandom(this.recipe.seed);
-            const pos = this.particles.geometry.attributes.position.array;
-            const data = this.particles.geometry.attributes.aData.array;
-            for (let i = 0; i < this.maxPoints; i++) {
-                const p = i * 3, d = i * 4;
-                pos[p] = random.next() * 2 - 1; pos[p+1] = random.next() * 2 - 1; pos[p+2] = random.next() * 2 - 1;
-                data[d] = random.next(); data[d+1] = random.next(); data[d+2] = random.next(); data[d+3] = random.next();
-            }
-            this.particles.geometry.attributes.position.needsUpdate = true;
-            this.particles.geometry.attributes.aData.needsUpdate = true;
+            this.particleLayers.forEach((layer, layerIndex) => {
+                const random = new SeededRandom((this.recipe.seed ^ Math.imul(layerIndex + 1, 0x9e3779b9)) >>> 0);
+                const pos = layer.geometry.attributes.position.array;
+                const data = layer.geometry.attributes.aData.array;
+                for (let i = 0; i < this.maxPoints; i++) {
+                    const p = i * 3, d = i * 4;
+                    pos[p] = random.next() * 2 - 1; pos[p+1] = random.next() * 2 - 1; pos[p+2] = random.next() * 2 - 1;
+                    data[d] = random.next(); data[d+1] = random.next(); data[d+2] = random.next(); data[d+3] = random.next();
+                }
+                layer.geometry.attributes.position.needsUpdate = true;
+                layer.geometry.attributes.aData.needsUpdate = true;
+            });
         }
         setRecipe(recipe) {
             if (!this.available) return;
@@ -1400,10 +1434,22 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             if (this.uniforms) this.uniforms.uDrift.value.set(this.drift.x, this.drift.y);
         }
         setFamilyMix(families, weights) {
-            if (!this.uniforms) return;
-            this.uniforms.uFamily.value = families[0]; this.uniforms.uFamilyB.value = families[1];
-            this.uniforms.uFamilyC.value = families[2]; this.uniforms.uFamilyD.value = families[3];
-            this.uniforms.uFamilyWeights.value.set(weights[0],weights[1],weights[2],weights[3]);
+            if (!this.uniforms || !this.particleLayers.length) return;
+            this.layerFamilies = families.slice(0, 4); this.layerWeights = weights.slice(0, 4);
+            const coreFamilies = new Set([0,1,4,5,6]);
+            const ringFamilies = new Set([0,2,4,5,6]);
+            this.coreBlend = 0; this.ringBlend = 0;
+            this.particleLayers.forEach((layer, index) => {
+                const family = Number(this.layerFamilies[index] || 0);
+                const weight = Math.max(0, Math.min(1, Number(this.layerWeights[index]) || 0));
+                layer.uniforms.uFamily.value = family; layer.uniforms.uLayerWeight.value = weight;
+                layer.points.visible = weight > 0.002;
+                if (coreFamilies.has(family)) this.coreBlend += weight;
+                if (ringFamilies.has(family)) this.ringBlend += weight;
+            });
+            this.coreBlend = Math.min(1, this.coreBlend); this.ringBlend = Math.min(1, this.ringBlend);
+            this.uniforms.uCoreWeight.value = this.coreBlend;
+            this.updateDrawRange();
         }
         beginManualRotation() {
             this.manualDragging = true; this.manualVelocityYaw = 0; this.manualVelocityPitch = 0;
@@ -1422,7 +1468,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
         }
         setActive(active) {
             this.active = Boolean(active && this.available);
-            if (this.active) { this.lastFrame = performance.now(); this.resize(); }
+            if (this.active) { this.lastFrame = performance.now(); this.lastRenderTime = 0; this.resize(); }
             return this.active;
         }
         setBreathState(value, phase) { this.breath = value; this.phase = phase; }
@@ -1435,14 +1481,14 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             const baseHsl = { h:0, s:0, l:0 };
             this.uniforms.uColor.value.getHSL(baseHsl);
             this.uniforms.uAccent.value.setHSL(
-                (baseHsl.h + 0.055) % 1,
-                Math.min(0.72, Math.max(0.28, baseHsl.s)),
-                Math.min(0.82, baseHsl.l + 0.18)
+                (baseHsl.h + 0.045) % 1,
+                Math.min(0.76, Math.max(0.3, baseHsl.s + 0.04)),
+                Math.min(0.86, baseHsl.l + 0.2)
             );
             this.uniforms.uSecond.value.setHSL(
-                (baseHsl.h + 0.925) % 1,
-                Math.min(0.66, Math.max(0.22, baseHsl.s * 0.9)),
-                Math.min(0.74, baseHsl.l + 0.09)
+                (baseHsl.h + 0.955) % 1,
+                Math.min(0.68, Math.max(0.24, baseHsl.s * 0.88)),
+                Math.min(0.76, baseHsl.l + 0.06)
             );
             this.ringMaterial.color.copy(this.uniforms.uColor.value);
             this.coreGlowMaterial.color.copy(this.uniforms.uAccent.value);
@@ -1450,29 +1496,41 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             this.renderer.setClearColor(bg, 1); this.scene.fog.color.copy(bg);
         }
         updateDrawRange() {
-            if (!this.particles) return;
+            if (!this.particleLayers.length) return;
             const density = 0.42 + this.recipe.density * 0.58;
             const requested = this.minPoints + Math.pow(this.recipe.complexity, 1.3) * density * (this.maxPoints - this.minPoints);
-            this.particles.geometry.setDrawRange(0, Math.max(this.minPoints, Math.floor(requested * this.qualityScale)));
+            const totalBudget = Math.max(this.minPoints, Math.floor(requested * this.qualityScale));
+            const importance = this.layerWeights.map(weight => weight > 0.002 ? Math.sqrt(weight) : 0);
+            const importanceSum = importance.reduce((sum, value) => sum + value, 0) || 1;
+            this.currentPointCount = 0;
+            this.particleLayers.forEach((layer, index) => {
+                const count = Math.min(this.maxPoints, Math.max(0, Math.floor(totalBudget * importance[index] / importanceSum)));
+                layer.geometry.setDrawRange(0, count);
+                layer.points.visible = count > 0 && this.layerWeights[index] > 0.002;
+                this.currentPointCount += count;
+            });
         }
         resize() {
             if (!this.renderer || !this.canvas.parentElement) return;
             const rect = this.canvas.parentElement.getBoundingClientRect();
             const width = Math.max(1, Math.floor(rect.width)), height = Math.max(1, Math.floor(rect.height));
-            const dprCap = this.mobile ? 1.35 : 1.65;
+            const dprCap = this.mobile ? 1.2 : 1.45;
             this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, dprCap) * Math.sqrt(this.qualityScale));
             this.renderer.setSize(width, height, false);
             this.camera.aspect = width / height; this.camera.updateProjectionMatrix();
             this.uniforms.uPointScale.value = Math.min(width, height) / 720;
         }
         adaptQuality(frameMs, now) {
-            this.frameSamples.push(frameMs); if (this.frameSamples.length < 45) return;
+            this.frameSamples.push(frameMs); if (this.frameSamples.length < 30) return;
             const avg = this.frameSamples.reduce((a,b)=>a+b,0) / this.frameSamples.length; this.frameSamples.length = 0;
-            if (now - this.lastQualityChange < 3000) return;
+            if (now - this.lastQualityChange < 1800) return;
             let next = this.qualityScale;
-            if (avg > 28) next = Math.max(0.32, next - 0.22);
-            else if (avg > 19) next = Math.max(0.32, next - 0.14);
-            else if (avg < 16.5) next = Math.min(1, next + 0.05);
+            if (avg > 27) { next = Math.max(0.28, next - 0.2); this.goodQualityWindows = 0; }
+            else if (avg > 19) { next = Math.max(0.28, next - 0.11); this.goodQualityWindows = 0; }
+            else if (avg < 16.2) {
+                this.goodQualityWindows++;
+                if (this.goodQualityWindows >= 5) { next = Math.min(0.92, next + 0.035); this.goodQualityWindows = 0; }
+            } else this.goodQualityWindows = 0;
             if (Math.abs(next - this.qualityScale) > 0.001) {
                 this.qualityScale = next; this.lastQualityChange = now; this.updateDrawRange(); this.resize();
                 window.dispatchEvent(new CustomEvent('visual-lab-quality', { detail: { scale: next, fps: Math.round(1000/Math.max(1,avg)) } }));
@@ -1481,7 +1539,10 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
         animate() {
             this.raf = requestAnimationFrame(() => this.animate());
             if (!this.active || !this.available || document.hidden) { this.lastFrame = performance.now(); return; }
-            const now = performance.now(); const dt = Math.min(50, now - this.lastFrame); this.lastFrame = now;
+            const now = performance.now();
+            if (now - this.lastRenderTime < 15) return;
+            this.lastRenderTime = now;
+            const dt = Math.min(50, now - this.lastFrame); this.lastFrame = now;
             const u = this.uniforms;
             u.uTime.value += dt * 0.001; u.uBreath.value += (this.breath-u.uBreath.value) * Math.min(1,dt*0.012);
             this.pulse *= Math.pow(0.965, dt/16.67); u.uPulse.value = this.pulse;
@@ -1489,7 +1550,6 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             const pauseStrength = Math.min(1, this.turnAccent * (0.2 + this.recipe.response * 2.6));
             const flowDt = dt * (1 - pauseStrength);
             this.flowTime += flowDt * 0.001; u.uFlowTime.value = this.flowTime;
-            const family = Math.round(this.recipe.family || 0);
             const breathScale = 1 + (u.uBreath.value-0.5) * (0.1 + this.recipe.form * 0.16) * this.recipe.response;
             this.root.scale.setScalar(breathScale);
             this.autoYaw += flowDt * 0.00012 * this.recipe.rotation * (0.35 + this.recipe.motion * 1.65);
@@ -1504,17 +1564,18 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             }
             this.root.rotation.y = this.autoYaw + this.manualYaw;
             this.root.rotation.x = this.manualPitch;
-            this.core.visible = family === 0 || family === 1 || family === 4 || family === 5 || family === 6;
+            this.core.visible = this.coreBlend > 0.004;
             this.coreGlow.visible = this.core.visible;
-            this.rings.visible = family === 0 || family === 2 || family === 4 || family === 5 || family === 6;
+            this.rings.visible = this.ringBlend > 0.004;
             this.core.rotation.x += flowDt * 0.0001 * (0.4 + this.recipe.motion); this.core.rotation.y -= flowDt * 0.00014 * (0.4 + this.recipe.motion);
             this.coreGlow.scale.setScalar(1 + (u.uBreath.value-0.5)*0.34*this.recipe.response + this.turnAccent*this.recipe.response*0.06);
-            this.coreGlowMaterial.opacity = 0.018 + this.recipe.light * 0.045 + (this.pulse*0.012+this.turnAccent*0.035)*this.recipe.response;
+            this.coreGlowMaterial.opacity = (0.018 + this.recipe.light * 0.045 + (this.pulse*0.012+this.turnAccent*0.035)*this.recipe.response) * this.coreBlend;
             this.rings.rotation.z -= flowDt * 0.000035 * (0.2 + this.recipe.motion * 2.0);
             this.rings.rotation.x = Math.sin(this.flowTime*0.09) * this.recipe.depth * 0.25;
             this.rings.scale.setScalar(0.98 + (u.uBreath.value-0.5)*0.16*this.recipe.response + this.recipe.scale * 0.08);
-            this.ringMaterial.opacity = 0.055 + this.recipe.atmosphere * 0.1 + (this.pulse*0.018+this.turnAccent*0.045)*this.recipe.response;
-            const tunnelTravel = family === 2 ? (this.flowTime*(0.08+this.recipe.motion*0.22))%1.8 : 0;
+            this.ringMaterial.opacity = (0.055 + this.recipe.atmosphere * 0.1 + (this.pulse*0.018+this.turnAccent*0.045)*this.recipe.response) * this.ringBlend;
+            const tunnelBlend = this.layerFamilies.reduce((sum, family, index) => sum + (family === 2 ? this.layerWeights[index] : 0), 0);
+            const tunnelTravel = ((this.flowTime*(0.08+this.recipe.motion*0.22))%1.8) * Math.min(1, tunnelBlend);
             this.camera.position.z = 8.4 - tunnelTravel;
             this.camera.position.x = Math.sin(this.flowTime*0.08)*this.recipe.depth*0.28*(0.4+this.drift.x);
             this.camera.position.y = Math.cos(this.flowTime*0.065)*this.recipe.warp*0.16;
@@ -1524,7 +1585,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
         }
         getStats() {
             if (!this.available) return { points: 0, calls: 0, scale: 0 };
-            return { points: this.particles.geometry.drawRange.count, calls: this.renderer.info.render.calls, scale: this.qualityScale };
+            return { points: this.currentPointCount, calls: this.renderer.info.render.calls, scale: this.qualityScale };
         }
         dispose() {
             try { if (this.raf) cancelAnimationFrame(this.raf); if (this.resizeObserver) this.resizeObserver.disconnect(); if (this.renderer) this.renderer.dispose(); } catch (error) {}
@@ -2085,6 +2146,9 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             document.getElementById('engine-three').classList.toggle('active', this.visualEngine === 'three');
             document.getElementById('engine-canvas').classList.toggle('active', this.visualEngine === 'canvas');
             if (this.infiniteViz) this.infiniteViz.setActive(this.visualEngine === 'three');
+            this.viz.setActive(true, this.visualEngine === 'three');
+            document.getElementById('three-canvas').setAttribute('aria-hidden', this.visualEngine === 'three' ? 'false' : 'true');
+            document.getElementById('viz-canvas').setAttribute('aria-hidden', this.visualEngine === 'three' ? 'true' : 'false');
             if (this.visualEngine === 'three') {
                 if (!this.threePadInitialized) {
                     this.threePadInitialized = true;
@@ -2092,6 +2156,8 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
                 } else {
                     this.updateLabMix(this.currentX, this.currentY);
                 }
+            } else {
+                this.updateXY(this.currentX, this.currentY);
             }
             this.updateDropdownOptions();
             const warning = document.getElementById('three-unavailable');
@@ -2319,11 +2385,35 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             const a = ranked[0], b = ranked[1];
             const mix = b.weight > 0 ? b.weight / Math.max(0.0001, a.weight + b.weight) : 0;
             this.visualMixState = { a:a.family, b:b.family, mix };
-            const active = ranked.slice(0, 4);
+            const active = ranked.filter(item => item.weight > 0.0001).slice(0, 4);
+            while (active.length < 4) active.push({ family:active[0] ? active[0].family : 0, weight:0 });
             this.infiniteViz.setFamilyMix(active.map(item => item.family), active.map(item => item.weight));
+            this.applyHybridClassicWeights(corners, weights);
             this.visualRecipe.family = a.family;
             this.updateFamilySelector();
             this.updateVisualFamily();
+        }
+        applyHybridClassicWeights(corners, weights) {
+            const mapping = [
+                { circle:0.68, luma:0.32 },
+                { luma:0.62, ripple:0.38 },
+                { leere:0.72, ripple:0.28 },
+                { aura:0.72, ripple:0.28 },
+                { ripple:0.66, circle:0.34 },
+                { luma:0.78, leere:0.22 },
+                { circle:0.56, luma:0.44 },
+                { aura:0.76, ripple:0.24 }
+            ];
+            const hybrid = { mist:0, circle:0, ripple:0, luma:0, leere:0, aura:0 };
+            corners.forEach((family, cornerIndex) => {
+                const familyMix = mapping[family] || mapping[0];
+                Object.entries(familyMix).forEach(([mode, amount]) => hybrid[mode] += weights[cornerIndex] * amount);
+            });
+            const strongest = Object.entries(hybrid).sort((a,b) => b[1]-a[1]).slice(0, 2);
+            Object.keys(hybrid).forEach(mode => hybrid[mode] = 0);
+            const strongestSum = strongest.reduce((sum, entry) => sum + entry[1], 0) || 1;
+            strongest.forEach(([mode, amount]) => hybrid[mode] = amount / strongestSum);
+            this.viz.weights = hybrid;
         }
         toggleReverse() {
             this.isReverse = !this.isReverse;
@@ -2412,9 +2502,6 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             this.currentX = x; this.currentY = y;
             document.getElementById('xy-cursor').style.left = (x * 100) + '%';
             document.getElementById('xy-cursor').style.top = (y * 100) + '%';
-            if (this.visualEngine === 'three' && this.visualRecipe) {
-                this.updateLabMix(x, y);
-            }
             document.querySelectorAll('#viz-mode-chips .chip').forEach(c => c.classList.remove('active'));
             const w_tl = (1-x)*(1-y); const w_tr = x*(1-y); const w_bl = (1-x)*y; const w_br = x*y;
             this.viz.weights = { mist: 0, circle: 0, ripple: 0, luma: 0, leere: 0, aura: 0 };
@@ -2422,6 +2509,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             this.viz.weights[this.padCorners.tr] += w_tr;
             this.viz.weights[this.padCorners.bl] += w_bl;
             this.viz.weights[this.padCorners.br] += w_br;
+            if (this.visualEngine === 'three' && this.visualRecipe) this.updateLabMix(x, y);
             if (this.layoutState === 0) {
                 const vizArea = document.getElementById('visual-area');
                 if(y > 0.6 && x > 0.6) { vizArea.classList.remove('pos-center'); vizArea.classList.add('pos-top'); }
