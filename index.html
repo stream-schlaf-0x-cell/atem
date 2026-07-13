@@ -50,7 +50,7 @@
         body.three-active #three-canvas { opacity: var(--particle-mix-opacity, 1); }
         body.three-active #viz-canvas { z-index: 2; opacity: var(--classic-mix-opacity, 0); pointer-events: none; mix-blend-mode: screen; }
         body.three-active .viz-canvas { transition: none; }
-        body.three-active #visual-area { cursor: grab; touch-action: none; }
+        body.visual-drag-enabled #visual-area { cursor: grab; touch-action: none; }
         body.visual-rotating #visual-area { cursor: grabbing; user-select: none; -webkit-user-select: none; }
         .instruction-text {
             position: relative; font-size: 1.6rem; font-weight: 300; letter-spacing: 0.12em;
@@ -110,7 +110,7 @@
         .pure-set-grid { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 7px; margin: 0 0 20px; }
         .pure-set-grid .chip { justify-content: center; min-width: 0; padding-left: 8px; padding-right: 8px; font-size: 0.72rem; }
         @media (max-width: 520px) { .pure-set-grid { grid-template-columns: repeat(2,minmax(0,1fr)); } }
-        input[type=range] { -webkit-appearance: none; width: 100%; background: transparent; cursor: pointer; margin: 0; padding: 0; }
+        input[type=range] { -webkit-appearance: none; width: 100%; background: transparent; cursor: pointer; margin: 0; padding: 0; touch-action: none; }
         input[type=range]:focus { outline: none; }
         input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 6px; cursor: pointer; background: rgba(255, 255, 255, 0.15); border-radius: 3px; border: none; }
         input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; height: 20px; width: 20px; border-radius: 50%; background: #ffffff; box-shadow: 0 2px 6px rgba(0,0,0,0.4); cursor: pointer; margin-top: -7px; transition: transform 0.1s ease; }
@@ -190,6 +190,8 @@
         .family-scroll::-webkit-scrollbar { display: none; }
         .family-chip { min-width: 0; border: 1px solid rgba(255,255,255,0.09); border-radius: 999px; padding: 8px 6px; background: rgba(255,255,255,0.035); color: rgba(255,255,255,0.55); font: inherit; font-size: 0.68rem; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .family-chip.active { color: #fff; border-color: rgba(255,255,255,0.24); background: linear-gradient(135deg, rgba(74,99,140,0.62), rgba(230,198,90,0.16)); }
+        .family-chip.classic-family { border-style: dashed; background: rgba(255,255,255,0.055); }
+        .family-chip.classic-family.active { border-style: solid; background: linear-gradient(135deg, rgba(166,89,89,0.5), rgba(230,198,90,0.14)); }
         .lab-slider-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 18px; }
         .lab-slider { min-width: 0; }
         .lab-slider label { display: flex; justify-content: space-between; align-items: center; }
@@ -574,8 +576,8 @@
                         <button id="lab-color-drift-btn" type="button" class="chip" onclick="app.toggleColorDrift()"><span>Farb-Drive</span><span id="lab-color-drift-status" style="opacity:0.55">Aus</span></button>
                     </div>
                     <div class="lab-slider-grid">
-                        <div class="lab-slider"><label><span>Visual-Rhythmus</span><output id="lab-drift-speed-val">4×</output></label><input id="lab-drift-speed" type="range" min="0.125" max="12" step="0.125" value="4"></div>
-                        <div class="lab-slider"><label><span>Farb-Rhythmus</span><output id="lab-color-drift-val">4×</output></label><input id="lab-color-drift" type="range" min="1" max="12" step="1" value="4"></div>
+                        <div class="lab-slider"><label><span>Visual-Rhythmus</span><output id="lab-drift-speed-val">4×</output></label><input id="lab-drift-speed" type="range" min="1" max="12" step="0.5" value="4"></div>
+                        <div class="lab-slider"><label><span>Farb-Rhythmus</span><output id="lab-color-drift-val">4×</output></label><input id="lab-color-drift" type="range" min="1" max="12" step="0.5" value="4"></div>
                     </div>
                 </div>
                 <div class="lab-target-label">Mutationsziele · aktiv wird verändert</div>
@@ -625,13 +627,13 @@
                 <button id="drift-btn" class="chip" style="width:100%; justify-content: space-between; display: flex; margin-top: 10px;" onclick="app.toggleDrift()"><span>Auto-Drift</span><span id="drift-status" style="opacity:0.5">Aus</span></button>
                 <div id="drift-controls" style="display:none; margin-top:12px;">
                     <label><span>Dauer: <span id="drift-val">4</span> Phase</span></label>
-                    <input type="range" id="drift-slider" min="0.125" max="12" step="0.125" value="4">
+                    <input type="range" id="drift-slider" min="1" max="12" step="0.5" value="4">
                 </div>
                 <div style="margin-top: 10px;">
                     <button id="color-drift-btn" class="chip" style="width:100%; justify-content: space-between; display: flex;" onclick="app.toggleColorDrift()"><span>Farb-Drift</span><span id="color-drift-status" style="opacity:0.5">Aus</span></button>
                     <div id="color-drift-controls" style="display:none; margin-top:12px;">
                         <label><span>Dauer: <span id="color-drift-val">4</span> Zyklen</span></label>
-                        <input type="range" id="color-drift-slider" min="1" max="12" step="1" value="4">
+                        <input type="range" id="color-drift-slider" min="1" max="12" step="0.5" value="4">
                     </div>
                 </div>
             </details>
@@ -755,12 +757,15 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             this.overdrive = 0;
             this.tapPulse = 0; this.phase = 'hold-empty';
             this.audioBass = 0;
+            this.visualTime = 0;
             this.lastFrameTime = performance.now();
             this.lowFpsFrames = 0;
             this.performanceLock = false;
             this.active = true; this.hybridActive = false; this.hybridMixStrength = 0; this.lastHybridFrame = 0;
+            this.manualYaw = 0; this.manualPitch = 0;
+            this.manualVelocityYaw = 0; this.manualVelocityPitch = 0; this.manualDragging = false;
             const hybridMemory = Number(navigator.deviceMemory || 0), hybridCores = Number(navigator.hardwareConcurrency || 4);
-            this.hybridFrameInterval = hybridCores <= 4 && (hybridMemory === 0 || hybridMemory <= 4) ? 67 : (hybridCores >= 8 ? 33 : 50);
+            this.hybridFrameInterval = hybridCores <= 4 && (hybridMemory === 0 || hybridMemory <= 4) ? 33 : (hybridCores >= 8 ? 17 : 25);
             this.pCount = this.config.particleCount;
             this.initArrays();
             this.particleSprite = null; this.particleSpriteColor = ''; this.initParticles = false;
@@ -899,8 +904,46 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
         setHybridMix(weights, strength) {
             this.weights = weights;
             this.hybridMixStrength = Math.max(0, Math.min(1, Number(strength) || 0));
-            document.body.style.setProperty('--classic-mix-opacity', String(Math.pow(this.hybridMixStrength, 0.82)));
+            // The individual mode weights already perform the crossfade. A second CSS fade
+            // made the middle of a Classic/V5 mix unnecessarily dark.
+            document.body.style.setProperty('--classic-mix-opacity', this.hybridMixStrength > 0.002 ? '1' : '0');
             if (this.hybridActive && this.hybridMixStrength <= 0.002) this.ctx.clearRect(0, 0, this.width, this.height);
+        }
+        beginManualRotation() {
+            this.manualDragging = true; this.manualVelocityYaw = 0; this.manualVelocityPitch = 0;
+        }
+        rotateManual(dx, dy, dt = 16.67) {
+            const sensitivity = 0.0045;
+            const frameScale = 16.67 / Math.max(8, Math.min(40, dt));
+            this.manualYaw += dx * sensitivity;
+            this.manualPitch = Math.max(-1.05, Math.min(1.05, this.manualPitch + dy * sensitivity * 0.72));
+            this.manualVelocityYaw = dx * sensitivity * frameScale * 0.34;
+            this.manualVelocityPitch = dy * sensitivity * 0.72 * frameScale * 0.28;
+        }
+        endManualRotation() { this.manualDragging = false; }
+        resetManualRotation() {
+            this.manualYaw = 0; this.manualPitch = 0; this.manualVelocityYaw = 0; this.manualVelocityPitch = 0;
+        }
+        stepManualRotation(dt) {
+            if (this.manualDragging) return;
+            const frame = Math.max(0.25, Math.min(3, dt / 16.67));
+            this.manualYaw += this.manualVelocityYaw * frame;
+            this.manualPitch = Math.max(-1.05, Math.min(1.05, this.manualPitch + this.manualVelocityPitch * frame));
+            const damping = Math.pow(0.84, frame);
+            this.manualVelocityYaw *= damping; this.manualVelocityPitch *= damping;
+            if (Math.abs(this.manualVelocityYaw) < 0.00002) this.manualVelocityYaw = 0;
+            if (Math.abs(this.manualVelocityPitch) < 0.00002) this.manualVelocityPitch = 0;
+        }
+        applyManualTransform() {
+            if (Math.abs(this.manualYaw) < 0.0001 && Math.abs(this.manualPitch) < 0.0001) return false;
+            const yawTilt = Math.sin(this.manualYaw) * 0.075;
+            const pitchTilt = Math.sin(this.manualPitch) * 0.12;
+            this.ctx.save();
+            this.ctx.translate(this.centerX, this.centerY);
+            this.ctx.rotate(this.manualYaw * 0.34 + this.manualPitch * 0.06);
+            this.ctx.transform(1, pitchTilt, yawTilt, 0.94 + Math.cos(this.manualPitch) * 0.06, 0, 0);
+            this.ctx.translate(-this.centerX, -this.centerY);
+            return true;
         }
 
         animate() {
@@ -912,6 +955,8 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             if (this.hybridActive) this.lastHybridFrame = now;
             const dt = now - this.lastFrameTime;
             this.lastFrameTime = now;
+            this.visualTime += Math.min(24, Math.max(0, dt));
+            this.stepManualRotation(dt);
             if (dt > 40) {
                 this.lowFpsFrames++;
             } else {
@@ -960,6 +1005,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
 
             /* V4: V2-style pulseBoost calculation (tapPulse weighted by breathValue) */
             const pulseBoost = this.tapPulse * 0.4 * (0.4 + 0.6 * this.breathValue) + (this.audioBass * 0.3 * this.intensity);
+            const manualTransformActive = this.applyManualTransform();
 
             if (this.weights.mist > 0.01) this.renderMist(this.weights.mist, pulseBoost);
             if (this.weights.leere > 0.01) this.renderLeere(this.weights.leere, pulseBoost);
@@ -975,6 +1021,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             if (this.weights.circle > 0.01) { this.ctx.save(); this.ctx.globalAlpha = this.weights.circle; this.renderCircle(pulseBoost); this.ctx.restore(); }
             if (this.weights.ripple > 0.01) { this.ctx.save(); this.ctx.globalAlpha = this.weights.ripple; this.renderRipple(pulseBoost); this.ctx.restore(); }
             if (this.weights.luma > 0.01) { this.ctx.save(); this.ctx.globalAlpha = this.weights.luma; this.renderLuma(pulseBoost); this.ctx.restore(); }
+            if (manualTransformActive) this.ctx.restore();
 
             /* V4 TAP FLASH: V2's mist-weighted glow */
             if (this.tapPulse > 0.01) {
@@ -1000,7 +1047,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
         /* V4 MIST: Exact V2 physics and alpha math */
         renderMist(layerOpacity, pulseBoost) {
             if (!this.initParticles) { for (let i = 0; i < this.pCount; i++) this.resetParticle(i); this.initParticles = true; }
-            const time = Date.now() * 0.0003;
+            const time = this.visualTime * 0.0003;
             const maxR = Math.min(this.width, this.height) * 0.4;
             const targetR = 20 + (maxR * this.breathValue);
             const noiseScale = 0.0015 + (this.randomness * 0.02);
@@ -1042,7 +1089,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
         renderLeere(layerOpacity, pulseBoost) {
             const cx = this.centerX, cy = this.centerY;
             const maxD = Math.min(this.width, this.height);
-            const t = Date.now() * 0.00005;
+            const t = this.visualTime * 0.00005;
             const coreRadius = maxD * (0.05 + 0.08 * this.breathValue) * (1 + pulseBoost * 0.05);
             this.ctx.save();
             this.ctx.globalAlpha = layerOpacity * 0.7; // V4: dimmed to match V2 subtlety
@@ -1050,8 +1097,8 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             this.ctx.rotate(t);
             const points = this.lumaPoints * 2;
             const layers = 5 + Math.floor(this.intensity * 5);
-            const expansion = maxD * 0.5 * (0.02 + 0.98 * Math.pow(this.breathValue, 1.5)) * (1 + this.randomness * 0.3 * Math.sin(Date.now() * 0.001));
-            const sway = this.randomness * Math.sin(Date.now() * 0.0005) * 0.6;
+            const expansion = maxD * 0.5 * (0.02 + 0.98 * Math.pow(this.breathValue, 1.5)) * (1 + this.randomness * 0.3 * Math.sin(this.visualTime * 0.001));
+            const sway = this.randomness * Math.sin(this.visualTime * 0.0005) * 0.6;
             this.ctx.lineWidth = (0.54 + this.intensity * 0.86) * (0.2 + 0.8 * this.breathValue);
             for(let l=1; l<=layers; l++) {
                 const layerProg = l / layers;
@@ -1107,7 +1154,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             /* V4: Reduced alpha base for darker, subtler look */
             const alphaBase = (this.breathValue * 0.4) * this.intensity;
             const innerR = Math.max(0.1, currentR * 0.25);
-            const tAura = Date.now() * 0.0004;
+            const tAura = this.visualTime * 0.0004;
             const coreOffsetX = Math.cos(tAura) * maxR * 0.15 * this.randomness;
             const coreOffsetY = Math.sin(tAura * 0.7) * maxR * 0.15 * this.randomness;
             const g1 = this.ctx.createRadialGradient(cx + coreOffsetX, cy + coreOffsetY, 0, cx + coreOffsetX, cy + coreOffsetY, innerR);
@@ -1132,7 +1179,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
         renderCircle(pulseBoost) {
             const baseScale = Math.min(this.width, this.height) * 0.3;
             const rBase = (baseScale * (0.4 + this.breathValue * 0.6)) * (1 + this.tapPulse * 0.04);
-            const time = Date.now() * (0.0003 + this.randomness * 0.0002);
+            const time = this.visualTime * (0.0003 + this.randomness * 0.0002);
             const distortion = (20 * this.breathValue + (this.randomness * 5)) * this.intensity;
             this.ctx.beginPath();
             for(let i=0; i<=100; i++) {
@@ -1155,7 +1202,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
 
         /* V4 RIPPLE: V2's quadratic randomness wobble */
         renderRipple(pulseBoost) {
-            const t = Date.now() * (0.0002 + this.randomness * 0.0001);
+            const t = this.visualTime * (0.0002 + this.randomness * 0.0001);
             const count = Math.max(3, Math.floor(8 * this.intensity));
             const maxD = Math.min(this.width, this.height);
             const segments = 60 + Math.floor(this.randomness * 40);
@@ -1183,7 +1230,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
 
         /* V4 LUMA: Exact V2 mandala rendering */
         renderLuma(pulseBoost) {
-            const t = Date.now() * (0.0004 + this.randomness * 0.001);
+            const t = this.visualTime * (0.0004 + this.randomness * 0.001);
             const baseR = Math.min(this.width, this.height) * 0.20;
             const innerR = baseR * (0.5 + this.breathValue * 0.8) * (1 + Math.sin(t)*0.05) * (1 + this.tapPulse * 0.08);
             const g1 = this.ctx.createRadialGradient(this.centerX, this.centerY, 0, this.centerX, this.centerY, innerR);
@@ -1292,6 +1339,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             }[this.hardwareTier];
             this.maxPoints = this.iosStandalone ? Math.min(tier.points, 6500) : tier.points; this.minPoints = tier.min;
             this.qualityScale = tier.quality; this.maxQualityScale = tier.maxQuality; this.minQualityScale = tier.minQuality;
+            this.qualityTarget = this.qualityScale; this.lastAppliedQualityScale = this.qualityScale;
             this.dprCap = this.iosStandalone ? Math.min(tier.dpr, 1.2) : tier.dpr;
             // Keep the drawing-buffer size stable while adaptive quality changes.
             // Reallocating it can produce black compositing flashes in browsers and home-screen apps.
@@ -1568,7 +1616,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             });
             this.layerWeights = this.layerBudgetWeights.slice();
             this.mixStrength = Math.min(1, this.layerBudgetWeights.reduce((sum,weight) => sum + weight, 0));
-            document.body.style.setProperty('--particle-mix-opacity', String(Math.pow(this.mixStrength, 0.82)));
+            document.body.style.setProperty('--particle-mix-opacity', this.mixStrength > 0.002 ? '1' : '0');
             const coreFamilies = new Set([0,1,4,5,6]);
             const ringFamilies = new Set([0,2,4,5,6]);
             this.coreBlend = 0; this.ringBlend = 0;
@@ -1668,16 +1716,27 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             const sorted = samples.slice().sort((a,b)=>a-b);
             const p90 = sorted[Math.min(sorted.length-1, Math.floor(sorted.length*0.9))] || avg;
             if (now - this.lastQualityChange < 1000) return;
-            let next = this.qualityScale;
+            let next = this.qualityTarget;
             if (p90 > 32 || avg > 26) { next = Math.max(this.minQualityScale, next - 0.2); this.goodQualityWindows = 0; }
             else if (p90 > 22 || avg > 18.5) { next = Math.max(this.minQualityScale, next - 0.11); this.goodQualityWindows = 0; }
             else if (p90 < 18 && avg < 17.2) {
                 this.goodQualityWindows++;
                 if (this.goodQualityWindows >= 5) { next = Math.min(this.maxQualityScale, next + 0.035); this.goodQualityWindows = 0; }
             } else this.goodQualityWindows = 0;
-            if (Math.abs(next - this.qualityScale) > 0.001) {
-                this.qualityScale = next; this.lastQualityChange = now; this.updateDrawRange();
+            if (Math.abs(next - this.qualityTarget) > 0.001) {
+                this.qualityTarget = next; this.lastQualityChange = now;
                 window.dispatchEvent(new CustomEvent('visual-lab-quality', { detail: { scale: next, fps: Math.round(1000/Math.max(1,avg)) } }));
+            }
+        }
+        stepQuality(dt) {
+            const difference = this.qualityTarget - this.qualityScale;
+            if (Math.abs(difference) < 0.001) return;
+            // Draw-range changes are eased over several frames. Large instant point-count
+            // changes looked like skipped animation frames even when requestAnimationFrame ran.
+            this.qualityScale += difference * Math.min(0.16, dt * 0.006);
+            if (Math.abs(this.qualityScale - this.lastAppliedQualityScale) >= 0.012 || Math.abs(difference) < 0.004) {
+                this.lastAppliedQualityScale = this.qualityScale;
+                this.updateDrawRange();
             }
         }
         animate() {
@@ -1686,7 +1745,10 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             const now = performance.now();
             this.lastRenderTime = now;
             const rawDt = now - this.lastFrame;
-            const dt = Math.min(50, rawDt); this.lastFrame = now;
+            // Never advance visible motion by several frames at once after a short browser
+            // scheduling stall. Breath timing remains absolute; only decorative motion eases.
+            const dt = Math.min(24, rawDt); this.lastFrame = now;
+            this.stepQuality(dt);
             const u = this.uniforms;
             u.uTime.value += dt * 0.001; u.uBreath.value += (this.breath-u.uBreath.value) * Math.min(1,dt*0.012);
             this.pulse *= Math.pow(0.965, dt/16.67); u.uPulse.value = this.pulse;
@@ -1731,7 +1793,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             this.renderer.render(this.scene, this.camera);
             // Ignore long browser/UI stalls: they are not GPU load and must not
             // permanently lower visual quality after a tab switch or open menu.
-            if (rawDt < 80) this.adaptQuality(dt, now);
+            if (rawDt < 80) this.adaptQuality(rawDt, now);
         }
         getStats() {
             if (!this.available) return { points: 0, calls: 0, scale: 0 };
@@ -1979,7 +2041,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             this.musicalLoopOptions = [];
             this.driftWasActiveBeforeDrag = false;
             this.evolveActive = false; this.evolveCycles = 4; this.evolveProgress = 0;
-            this.driftPhaseX = 0; this.driftPhaseY = 0;
+            this.driftOrbitPhase = 0; this.driftOrbitRadius = 0; this.driftOrbitShape = 'circle';
             this.colorDriftActive = false; this.colorDriftDirection = 1; this.colorDriftCycles = 4;
             this.currentColorValue = 0; this.currentPreset = ""; this.layoutState = 1;
             this.timerWorker = null; this.timerFallback = null;
@@ -2041,8 +2103,9 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             getEl('overdrive-val').innerText = formatPct(val('overdrive-slider'));
             getEl('points-val').innerText = val('points-slider');
             const dVal = val('drift-slider');
-            getEl('drift-val').innerText = dVal === 0.125 ? "1/8" : (dVal === 0.25 ? "1/4" : (dVal === 0.5 ? "1/2" : (dVal === 0.75 ? "3/4" : dVal)));
-            getEl('color-drift-val').innerText = val('color-drift-slider');
+            getEl('drift-val').innerText = Number.isInteger(dVal) ? String(dVal) : dVal.toFixed(1);
+            const colorCycles = val('color-drift-slider');
+            getEl('color-drift-val').innerText = Number.isInteger(colorCycles) ? String(colorCycles) : colorCycles.toFixed(1);
         }
         startIdleLoop() {
             if (this.idleLoopStarted) return;
@@ -2061,6 +2124,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
         setupUI() {
             const getEl = id => document.getElementById(id);
             this.setupVisualRotationDrag();
+            this.setupRangeDragging();
             getEl('startBtn').addEventListener('click', () => this.toggle());
             const handle = document.querySelector('.handle');
             if(handle) handle.addEventListener('pointerdown', (e) => { e.stopPropagation(); this.toggleUI(); });
@@ -2126,7 +2190,19 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             bindSlider('color-drift-slider', 'colorDriftCycles', 'color-drift-val');
             const labDriftSpeed = getEl('lab-drift-speed');
             const labColorDrift = getEl('lab-color-drift');
-            const formatRhythm = value => value === 0.125 ? '1/8×' : value === 0.25 ? '1/4×' : value === 0.5 ? '1/2×' : value === 0.75 ? '3/4×' : `${Number(value).toFixed(value%1 ? 3 : 0).replace(/0+$/,'').replace(/\.$/,'')}×`;
+            const formatRhythm = value => `${Number(value).toFixed(value % 1 ? 1 : 0)}×`;
+            getEl('drift-slider').addEventListener('input', event => {
+                const value = Math.max(1, Math.round(parseFloat(event.target.value) * 2) / 2);
+                this.evolveCycles = value; labDriftSpeed.value = value;
+                getEl('lab-drift-speed-val').value = formatRhythm(value);
+                getEl('drift-val').innerText = formatRhythm(value).replace('×','');
+            }, { passive:true });
+            getEl('color-drift-slider').addEventListener('input', event => {
+                const value = Math.max(1, Math.round(parseFloat(event.target.value) * 2) / 2);
+                this.colorDriftCycles = value; labColorDrift.value = value;
+                getEl('lab-color-drift-val').value = formatRhythm(value);
+                getEl('color-drift-val').innerText = formatRhythm(value).replace('×','');
+            }, { passive:true });
             labDriftSpeed.addEventListener('input', () => {
                 const value = parseFloat(labDriftSpeed.value); this.evolveCycles = value;
                 getEl('lab-drift-speed-val').value = formatRhythm(value);
@@ -2134,7 +2210,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             }, { passive:true });
             labColorDrift.addEventListener('input', () => {
                 const value = parseFloat(labColorDrift.value); this.colorDriftCycles = value;
-                getEl('lab-color-drift-val').value = `${value}×`;
+                getEl('lab-color-drift-val').value = formatRhythm(value);
                 getEl('color-drift-slider').value = value; getEl('color-drift-val').innerText = value;
             }, { passive:true });
             this.padElement = getEl('xy-pad');
@@ -2191,19 +2267,6 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             });
             getEl('vol-slider').value = this.audio.volume;
             this.updateThemeColor(0);
-            const dSlider = getEl('drift-slider'); dSlider.min = "0.125"; dSlider.step = "0.125";
-            dSlider.addEventListener('input', (e) => {
-                const v = parseFloat(e.target.value); const label = getEl('drift-val');
-                labDriftSpeed.value = v; getEl('lab-drift-speed-val').value = formatRhythm(v);
-                if (Math.abs(v - 0.125) < 0.001) label.innerText = "1/8";
-                else if (Math.abs(v - 0.25) < 0.001) label.innerText = "1/4";
-                else if (Math.abs(v - 0.5) < 0.001) label.innerText = "1/2";
-                else if (Math.abs(v - 0.75) < 0.001) label.innerText = "3/4";
-                else label.innerText = v;
-            });
-            getEl('color-drift-slider').addEventListener('input', event => {
-                const value = parseFloat(event.target.value); labColorDrift.value = value; getEl('lab-color-drift-val').value = `${value}×`;
-            }, { passive:true });
             const labSliders = {
                 'lab-form': 'form', 'lab-motion': 'motion', 'lab-depth': 'depth',
                 'lab-light': 'light', 'lab-complexity': 'complexity', 'lab-atmosphere': 'atmosphere', 'lab-rotation': 'rotation', 'lab-response': 'response', 'lab-colorVariance': 'colorVariance'
@@ -2236,13 +2299,58 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             getEl('hd-status').innerText = isHigh ? "Ein" : "Aus";
         }
 
+        setupRangeDragging() {
+            const setFromPointer = (slider, event) => {
+                const rect = slider.getBoundingClientRect();
+                if (rect.width <= 0) return;
+                const min = Number(slider.min || 0), max = Number(slider.max || 100);
+                const step = slider.step === 'any' ? 0 : Math.max(Number(slider.step || 1), Number.EPSILON);
+                let ratio = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width));
+                if (getComputedStyle(slider).direction === 'rtl') ratio = 1 - ratio;
+                let value = min + ratio * (max - min);
+                if (step) value = min + Math.round((value - min) / step) * step;
+                value = Math.max(min, Math.min(max, value));
+                const decimals = step && String(step).includes('.') ? String(step).split('.')[1].length : 0;
+                const next = decimals ? value.toFixed(decimals) : String(Math.round(value));
+                if (slider.value !== next) {
+                    slider.value = next;
+                    slider.dispatchEvent(new Event('input', { bubbles:true }));
+                }
+            };
+            document.querySelectorAll('input[type="range"]').forEach(slider => {
+                let activePointer = null;
+                slider.addEventListener('pointerdown', event => {
+                    if (event.isPrimary === false || (event.button !== undefined && event.button !== 0)) return;
+                    activePointer = event.pointerId;
+                    try { slider.setPointerCapture(activePointer); } catch (error) {}
+                    try { slider.focus({ preventScroll:true }); } catch (error) { slider.focus(); }
+                    setFromPointer(slider, event); event.preventDefault();
+                }, { passive:false });
+                slider.addEventListener('pointermove', event => {
+                    if (activePointer === null || event.pointerId !== activePointer) return;
+                    setFromPointer(slider, event); event.preventDefault();
+                }, { passive:false });
+                const finish = event => {
+                    if (activePointer === null || (event && event.pointerId !== activePointer)) return;
+                    try { slider.releasePointerCapture(activePointer); } catch (error) {}
+                    activePointer = null;
+                    slider.dispatchEvent(new Event('change', { bubbles:true }));
+                    if (event) event.preventDefault();
+                };
+                slider.addEventListener('pointerup', finish, { passive:false });
+                slider.addEventListener('pointercancel', finish, { passive:false });
+                slider.addEventListener('lostpointercapture', () => { activePointer = null; });
+            });
+        }
+
         setupVisualRotationDrag() {
             const area = document.getElementById('visual-area');
             if (!area || !this.infiniteViz) return;
+            document.body.classList.add('visual-drag-enabled');
             let pointerId = null, startX = 0, startY = 0, lastX = 0, lastY = 0, lastTime = 0, rotating = false;
             const isInteractive = target => target && target.closest && target.closest('button,input,select,a,label,summary,details,.top-ctrl,.float-btn,#instruction,#bottom-controls,#info-overlay,#summary-modal');
             area.addEventListener('pointerdown', event => {
-                if (this.visualEngine !== 'three' || event.isPrimary === false || (event.button !== undefined && event.button !== 0) || isInteractive(event.target)) return;
+                if (event.isPrimary === false || (event.button !== undefined && event.button !== 0) || isInteractive(event.target)) return;
                 pointerId = event.pointerId; startX = lastX = event.clientX; startY = lastY = event.clientY; lastTime = performance.now(); rotating = false;
                 try { area.setPointerCapture(pointerId); } catch (error) {}
             }, { passive:true });
@@ -2250,27 +2358,30 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
                 if (pointerId === null || event.pointerId !== pointerId) return;
                 const totalX = event.clientX-startX, totalY = event.clientY-startY;
                 if (!rotating && Math.hypot(totalX,totalY) >= 6) {
-                    rotating = true; document.body.classList.add('visual-rotating'); this.infiniteViz.beginManualRotation();
+                    rotating = true; document.body.classList.add('visual-rotating');
+                    this.infiniteViz.beginManualRotation(); this.viz.beginManualRotation();
                 }
                 const now = performance.now();
                 if (rotating) {
                     event.preventDefault();
                     this.infiniteViz.rotateManual(event.clientX-lastX,event.clientY-lastY,now-lastTime);
+                    this.viz.rotateManual(event.clientX-lastX,event.clientY-lastY,now-lastTime);
                 }
                 lastX = event.clientX; lastY = event.clientY; lastTime = now;
             }, { passive:false });
             const finish = event => {
                 if (pointerId === null || (event && event.pointerId !== pointerId)) return;
-                if (rotating) { if (event) event.preventDefault(); this.infiniteViz.endManualRotation(); }
+                if (rotating) { if (event) event.preventDefault(); this.infiniteViz.endManualRotation(); this.viz.endManualRotation(); }
                 try { area.releasePointerCapture(pointerId); } catch (error) {}
                 pointerId = null; rotating = false; document.body.classList.remove('visual-rotating');
             };
             area.addEventListener('pointerup', finish, { passive:false });
             area.addEventListener('pointercancel', finish, { passive:false });
-            area.addEventListener('lostpointercapture', () => { if (pointerId !== null) { this.infiniteViz.endManualRotation(); pointerId=null; rotating=false; document.body.classList.remove('visual-rotating'); } });
+            area.addEventListener('lostpointercapture', () => { if (pointerId !== null) { this.infiniteViz.endManualRotation(); this.viz.endManualRotation(); pointerId=null; rotating=false; document.body.classList.remove('visual-rotating'); } });
         }
         resetVisualOrientation() {
             if (this.infiniteViz) this.infiniteViz.resetManualRotation();
+            this.viz.resetManualRotation();
             this.triggerVisualPulse(0.25);
         }
 
@@ -2362,8 +2473,9 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
         buildFamilySelector() {
             const host = document.getElementById('family-selector'); if (!host) return;
             host.innerHTML = '';
-            VISUAL_FAMILIES.slice(0, THREE_FAMILY_COUNT).forEach((family, index) => {
+            VISUAL_FAMILIES.forEach((family, index) => {
                 const button = document.createElement('button'); button.type = 'button'; button.className = 'family-chip';
+                if (family.classicMode) button.classList.add('classic-family');
                 button.dataset.family = String(index); button.innerText = family.name;
                 button.addEventListener('click', () => this.selectVisualFamily(index, true));
                 host.appendChild(button);
@@ -2376,12 +2488,14 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
         }
         beautifulVisualRecipe(seed, requestedFamily = null, respectTargets = true) {
             const random = new SeededRandom(seed);
-            let family = requestedFamily === null ? Math.floor(random.next() * THREE_FAMILY_COUNT) : requestedFamily;
-            if (requestedFamily === null && respectTargets && !this.visualTargets.has('family')) family = this.visualRecipe.family;
-            if (requestedFamily === null && (!respectTargets || this.visualTargets.has('family')) && family === this.visualRecipe.family && random.next() < 0.72) {
-                family = (family + 1 + Math.floor(random.next() * (THREE_FAMILY_COUNT - 1))) % THREE_FAMILY_COUNT;
+            const familyCount = VISUAL_FAMILIES.length;
+            let family = requestedFamily === null ? Math.floor(random.next() * familyCount) : requestedFamily;
+            const currentFamily = Number.isFinite(this.selectedVisualOption) ? this.selectedVisualOption : this.visualRecipe.family;
+            if (requestedFamily === null && respectTargets && !this.visualTargets.has('family')) family = currentFamily;
+            if (requestedFamily === null && (!respectTargets || this.visualTargets.has('family')) && family === currentFamily && random.next() < 0.72) {
+                family = (family + 1 + Math.floor(random.next() * (familyCount - 1))) % familyCount;
             }
-            family = Math.max(0, Math.min(THREE_FAMILY_COUNT - 1, Math.round(family)));
+            family = Math.max(0, Math.min(familyCount - 1, Math.round(family)));
             const ranges = VISUAL_FAMILIES[family].ranges;
             const sample = range => {
                 const eased = (random.next() + random.next()) * 0.5;
@@ -2389,7 +2503,8 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             };
             const structuralTarget = !respectTargets || this.visualTargets.has('family') || this.visualTargets.has('form');
             const geometryTarget = structuralTarget || !respectTargets || this.visualTargets.has('complexity');
-            const next = { seed: geometryTarget ? seed : this.visualRecipe.seed, family };
+            const particleFamily = family < THREE_FAMILY_COUNT ? family : Math.max(0, Math.min(THREE_FAMILY_COUNT - 1, this.visualRecipe.family));
+            const next = { seed: geometryTarget ? seed : this.visualRecipe.seed, family:particleFamily, selectedFamily:family };
             ['form','motion','depth','light','complexity','atmosphere'].forEach(key => {
                 next[key] = respectTargets && !this.visualTargets.has(key) ? this.visualRecipe[key] : sample(ranges[key]);
             });
@@ -2408,11 +2523,10 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             return next;
         }
         selectVisualFamily(family, remember = true) {
-            family = Math.max(0, Math.min(THREE_FAMILY_COUNT - 1, Math.round(Number(family) || 0)));
+            family = Math.max(0, Math.min(VISUAL_FAMILIES.length - 1, Math.round(Number(family) || 0)));
             this.selectedVisualOption = family;
             const seed = this.nextVisualSeed();
             const next = this.beautifulVisualRecipe(seed, family, true);
-            next.family = family;
             this.applyVisualRecipe(next, remember);
             this.setVisualEngine('three');
             this.labPadCorners.tl = family;
@@ -2438,7 +2552,8 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             this.triggerVisualPulse(0.35);
         }
         randomizeLabCorners(random, primary) {
-            const pool = VISUAL_FAMILIES.slice(0, THREE_FAMILY_COUNT).map((_, index) => index).filter(index => index !== primary);
+            primary = Math.max(0, Math.min(VISUAL_FAMILIES.length - 1, Math.round(Number(primary) || 0)));
+            const pool = VISUAL_FAMILIES.map((_, index) => index).filter(index => index !== primary);
             for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(random.next() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
             this.labPadCorners = { tl: primary, tr: pool[0], bl: pool[1], br: pool[2] };
             this.updateDropdownOptions();
@@ -2469,7 +2584,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
                 this.currentColorValue = color; document.getElementById('color-slider').value = color; this.updateThemeColor(color);
             }
             if (this.visualTargets.has('family')) {
-                this.randomizeLabCorners(random, next.family);
+                this.randomizeLabCorners(random, next.selectedFamily);
                 this.updateXY(0.18 + random.next()*0.64, 0.18 + random.next()*0.64);
             }
             this.applyVisualRecipe(next, true); this.setVisualEngine('three'); this.triggerVisualPulse(0.9);
@@ -2477,7 +2592,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
         randomizeVisualLab() {
             const seed = this.nextVisualSeed(); const random = new SeededRandom(seed);
             const next = this.beautifulVisualRecipe(seed, null, false);
-            this.randomizeLabCorners(random, next.family);
+            this.randomizeLabCorners(random, next.selectedFamily);
             const color = random.next() * 100; this.currentColorValue = color;
             document.getElementById('color-slider').value = color; this.updateThemeColor(color);
             this.updateXY(0.2 + random.next()*0.6, 0.2 + random.next()*0.6);
@@ -2495,7 +2610,11 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             const mood = family.classicMode ? family.mood : (r.atmosphere > 0.76 ? 'Nebel' : r.motion > 0.7 ? 'Strom' : r.light > 0.78 ? 'Leuchten' : family.mood);
             document.getElementById('lab-family').innerText = mix.mix > 0.03 && mix.a !== mix.b ? `${family.name} × ${second.name}` : `${family.name} · ${mood}`;
             const stats = this.infiniteViz.getStats();
-            document.getElementById('lab-performance').innerText = stats.points ? `${Math.max(1,Math.round(stats.points/1000))}K Punkte · V5 Auto` : 'V5 bereit';
+            document.getElementById('lab-performance').innerText = this.classicMixStrength > 0.98
+                ? 'Classic · Canvas Eco'
+                : (this.classicMixStrength > 0.002
+                    ? `${Math.max(1,Math.round(stats.points/1000))}K Punkte · Hybrid`
+                    : (stats.points ? `${Math.max(1,Math.round(stats.points/1000))}K Punkte · V5 Auto` : 'V5 bereit'));
         }
         triggerVisualPulse(amount = 1) {
             this.viz.triggerPulse(amount); if (this.infiniteViz) this.infiniteViz.triggerPulse(amount);
@@ -2512,7 +2631,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
                 ['tl','tr','bl','br'].forEach(corner => {
                     const select = document.querySelector(`.xy-${corner}`); if (!select) return;
                     select.innerHTML = '';
-                    VISUAL_FAMILIES.slice(0, THREE_FAMILY_COUNT).forEach((family, index) => select.add(new Option(family.name, String(index), index === this.labPadCorners[corner], index === this.labPadCorners[corner])));
+                    VISUAL_FAMILIES.forEach((family, index) => select.add(new Option(family.name, String(index), index === this.labPadCorners[corner], index === this.labPadCorners[corner])));
                 });
                 return;
             }
@@ -2532,13 +2651,34 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
         }
         updateCorner(corner, mode) {
             if (this.visualEngine === 'three') {
-                this.labPadCorners[corner] = Math.max(0, Math.min(THREE_FAMILY_COUNT - 1, Number(mode) || 0));
+                this.labPadCorners[corner] = Math.max(0, Math.min(VISUAL_FAMILIES.length - 1, Number(mode) || 0));
                 this.updateXY(this.currentX, this.currentY);
                 return;
             }
             this.padCorners[corner] = mode;
             this.updateXY(this.currentX, this.currentY);
             setTimeout(() => this.updateDropdownOptions(), 10);
+        }
+        syncClassicLabParameters() {
+            const r = this.visualRecipe;
+            const key = [r.form,r.motion,r.light,r.complexity,r.atmosphere,r.response,r.colorVariance].map(value => Number(value).toFixed(3)).join('|');
+            if (key === this.lastClassicRecipeKey) return;
+            this.lastClassicRecipeKey = key;
+            const randomness = Math.min(0.82, 0.04 + r.form * 0.3 + r.motion * 0.22 + r.atmosphere * 0.12);
+            const intensity = Math.min(1, 0.32 + r.light * 0.5 + r.response * 0.18);
+            const overdrive = Math.min(0.72, Math.max(0, (r.light - 0.5) * 0.9 + r.colorVariance * 0.12));
+            const points = Math.max(3, Math.min(12, Math.round(3 + r.complexity * 9)));
+            this.viz.setRandomness(randomness); this.viz.setIntensity(intensity);
+            this.viz.setOverdrive(overdrive); this.viz.setLumaPoints(points);
+            const sync = (id, value, output, label) => {
+                const slider = document.getElementById(id), display = document.getElementById(output);
+                if (slider) slider.value = value;
+                if (display) display.innerText = label;
+            };
+            sync('randomness-slider', randomness, 'chaos-val', `${Math.round(randomness*100)}%`);
+            sync('intensity-slider', intensity, 'intensity-val', `${Math.round(intensity*100)}%`);
+            sync('overdrive-slider', overdrive, 'overdrive-val', `${Math.round(overdrive*100)}%`);
+            sync('points-slider', points, 'points-val', String(points));
         }
         updateLabMix(x, y) {
             if (!this.infiniteViz || !this.visualRecipe) return;
@@ -2551,7 +2691,27 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             const mix = b.weight > 0 ? b.weight / Math.max(0.0001, a.weight + b.weight) : 0;
             this.visualMixState = { a:a.family, b:b.family, mix };
             this.infiniteViz.setFamilyMix(corners, weights);
-            this.classicMixStrength = 0;
+            const classicWeights = { mist:0, circle:0, ripple:0, luma:0, leere:0, aura:0 };
+            let classicStrength = 0;
+            corners.forEach((family, index) => {
+                const mode = VISUAL_FAMILIES[family] && VISUAL_FAMILIES[family].classicMode;
+                if (mode) { classicWeights[mode] += weights[index]; classicStrength += weights[index]; }
+            });
+            const particleStrength = Math.max(0, 1 - classicStrength);
+            this.classicMixStrength = classicStrength;
+            if (this.visualEngine === 'three') {
+                if (classicStrength > 0.002) {
+                    this.syncClassicLabParameters();
+                    if (!this.viz.active || !this.viz.hybridActive) this.viz.setActive(true, true);
+                    this.viz.setHybridMix(classicWeights, classicStrength);
+                } else {
+                    this.viz.setHybridMix({}, 0);
+                    if (this.viz.active) this.viz.setActive(false, false);
+                }
+                if (particleStrength > 0.002) {
+                    if (!this.infiniteViz.active) this.infiniteViz.setActive(true);
+                } else if (this.infiniteViz.active) this.infiniteViz.setActive(false);
+            }
             this.selectedVisualOption = a.family;
             if (a.family < THREE_FAMILY_COUNT) this.visualRecipe.family = a.family;
             const now = performance.now();
@@ -2576,17 +2736,26 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
         }
         updateDrift(dt) {
             const cycleDur = this.getBreathCycleDuration();
+            // A delayed timer may report a large delta. Limit drive motion to roughly one
+            // 30-fps step so a recovered frame cannot visibly jump across the pad or palette.
+            const smoothDt = Math.max(0, Math.min(0.034, dt));
             if (this.evolveActive) {
-                const step = dt / (cycleDur * Math.max(0.125, this.evolveCycles));
+                const cycles = Math.max(1, Math.round(this.evolveCycles * 2) / 2);
+                const step = smoothDt / (cycleDur * cycles);
                 this.evolveProgress = (this.evolveProgress + step) % 1;
-                const angle = this.evolveProgress * Math.PI * 2;
-                const dx = 0.5 + 0.5 * Math.sin(this.driftPhaseX + angle);
-                const dy = 0.5 + 0.5 * Math.sin(this.driftPhaseY + angle * 2);
-                this.updateXY(Math.max(0, Math.min(1, dx)), Math.max(0, Math.min(1, dy)));
+                const angle = this.driftOrbitPhase + this.evolveProgress * Math.PI * 2;
+                let orbitX = Math.cos(angle), orbitY = Math.sin(angle);
+                if (this.driftOrbitShape === 'square') {
+                    const edge = Math.max(Math.abs(orbitX), Math.abs(orbitY), 0.0001);
+                    orbitX /= edge; orbitY /= edge;
+                }
+                const x = 0.5 + orbitX * this.driftOrbitRadius;
+                const y = 0.5 + orbitY * this.driftOrbitRadius;
+                this.updateXY(Math.max(0, Math.min(1, x)), Math.max(0, Math.min(1, y)));
             }
             if (this.colorDriftActive) {
                 const speed = 100 / (Math.max(1, this.colorDriftCycles) * cycleDur);
-                this.currentColorValue += speed * dt * this.colorDriftDirection;
+                this.currentColorValue += speed * smoothDt * this.colorDriftDirection;
                 if (this.currentColorValue >= 100) { this.currentColorValue = 100; this.colorDriftDirection = -1; }
                 if (this.currentColorValue <= 0) { this.currentColorValue = 0; this.colorDriftDirection = 1; }
                 this.updateThemeColor(this.currentColorValue);
@@ -2747,10 +2916,22 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
         toggleDrift(state) {
             const next = state !== undefined ? Boolean(state) : !this.evolveActive;
             if (next && !this.evolveActive) {
-                const clampSigned = value => Math.max(-1, Math.min(1, value * 2 - 1));
                 this.evolveProgress = 0;
-                this.driftPhaseX = Math.asin(clampSigned(this.currentX));
-                this.driftPhaseY = Math.asin(clampSigned(this.currentY));
+                this.evolveCycles = Math.max(1, Math.min(12, Math.round(this.evolveCycles * 2) / 2));
+                const offsetX = Math.max(-0.5, Math.min(0.5, this.currentX - 0.5));
+                const offsetY = Math.max(-0.5, Math.min(0.5, this.currentY - 0.5));
+                const circularRadius = Math.hypot(offsetX, offsetY);
+                this.driftOrbitPhase = circularRadius > 0.0001 ? Math.atan2(offsetY, offsetX) : 0;
+                // A true centered circle starts exactly at the released cursor whenever it fits.
+                // Near a corner no non-zero circle can both pass through that point and stay in
+                // the pad, so use the user's permitted rectangular fallback without a jump.
+                if (circularRadius <= 0.5) {
+                    this.driftOrbitShape = 'circle'; this.driftOrbitRadius = circularRadius;
+                } else {
+                    this.driftOrbitShape = 'square'; this.driftOrbitRadius = Math.max(Math.abs(offsetX), Math.abs(offsetY));
+                }
+                document.getElementById('lab-drift-speed').value = this.evolveCycles;
+                document.getElementById('drift-slider').value = this.evolveCycles;
             }
             this.evolveActive = next;
             document.getElementById('drift-btn').classList.toggle('active', this.evolveActive);
@@ -3021,7 +3202,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
         window.app = new BreathApp(); window.app.startIdleLoop();
         document.addEventListener('gesturestart', function(e) { e.preventDefault(); });
         document.addEventListener('touchmove', function(e) {
-            if (!e.target.closest('#ui-container') && !e.target.closest('#summary-modal')) e.preventDefault();
+            if (!e.target.closest('#ui-container, #xy-pad-container, #xy-pad-window, #summary-modal')) e.preventDefault();
         }, { passive: false });
     });
     </script>
