@@ -45,7 +45,7 @@
         body.theme-reines-licht { --bg-color: #121212; --accent-primary: #cfd8dc; }
         body.theme-mani-glanz { --bg-color: #070709; --accent-primary: #5e7291; }
         #visual-area { flex-grow: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative; width: 100%; height: 100%; }
-        .viz-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; z-index: 0; transition: opacity 0.8s ease; }
+        .viz-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; z-index: 0; transition: opacity 0.8s ease; transform: translateZ(0); backface-visibility: hidden; -webkit-backface-visibility: hidden; }
         #three-canvas { z-index: 1; opacity: 0; pointer-events: none; }
         body.three-active #three-canvas { opacity: var(--particle-mix-opacity, 1); }
         body.three-active #viz-canvas { z-index: 2; opacity: var(--classic-mix-opacity, 0); pointer-events: none; mix-blend-mode: screen; }
@@ -1275,7 +1275,9 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             this.manualVelocityYaw = 0; this.manualVelocityPitch = 0; this.manualDragging = false;
             this.primary = { r: 166, g: 89, b: 89 };
             this.background = { r: 14, g: 11, b: 12 };
-            this.mobile = matchMedia('(max-width: 767px)').matches || /iPhone|iPad|Android/i.test(navigator.userAgent);
+            const appleTouch = /iPhone|iPad|iPod/i.test(navigator.userAgent) || (/Macintosh/i.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
+            this.mobile = matchMedia('(max-width: 767px)').matches || appleTouch || /Android/i.test(navigator.userAgent);
+            this.iosStandalone = appleTouch && (navigator.standalone === true || matchMedia('(display-mode: standalone)').matches);
             this.reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
             const memory = Number(navigator.deviceMemory || 0);
             const cores = Number(navigator.hardwareConcurrency || 4);
@@ -1288,8 +1290,13 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
                 balanced:{ points:this.mobile ? 4800 : 6200, min:1700, quality:0.78, maxQuality:0.94, minQuality:0.4, dpr:1.18 },
                 high:{ points:this.mobile ? 7200 : 9000, min:2400, quality:0.86, maxQuality:1, minQuality:0.38, dpr:this.mobile ? 1.35 : 1.48 }
             }[this.hardwareTier];
-            this.maxPoints = tier.points; this.minPoints = tier.min;
-            this.qualityScale = tier.quality; this.maxQualityScale = tier.maxQuality; this.minQualityScale = tier.minQuality; this.dprCap = tier.dpr;
+            this.maxPoints = this.iosStandalone ? Math.min(tier.points, 6500) : tier.points; this.minPoints = tier.min;
+            this.qualityScale = tier.quality; this.maxQualityScale = tier.maxQuality; this.minQualityScale = tier.minQuality;
+            this.dprCap = this.iosStandalone ? Math.min(tier.dpr, 1.2) : tier.dpr;
+            // Keep the drawing-buffer size stable while adaptive quality changes.
+            // Reallocating it is a known source of black compositing flashes in iOS home-screen apps.
+            this.renderPixelRatio = Math.min(window.devicePixelRatio || 1, this.dprCap) * Math.sqrt(this.qualityScale);
+            this.lastPixelWidth = 0; this.lastPixelHeight = 0;
             this.layerFamilies = [0, 2, 3, 7]; this.layerWeights = [1, 0, 0, 0]; this.layerBudgetWeights = [1,0,0,0];
             this.mixStrength = 1; this.lastBudgetKey = '';
             this.particleLayers = []; this.currentPointCount = 0; this.coreBlend = 1; this.ringBlend = 1;
@@ -1298,7 +1305,11 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
         }
         init() {
             const T = window.THREE;
-            this.renderer = new T.WebGLRenderer({ canvas: this.canvas, antialias: false, alpha: false, powerPreference: 'high-performance', stencil: false });
+            this.renderer = new T.WebGLRenderer({
+                canvas: this.canvas, antialias: false, alpha: false, stencil: false,
+                powerPreference: this.iosStandalone ? 'default' : 'high-performance',
+                preserveDrawingBuffer: this.iosStandalone
+            });
             this.renderer.setClearColor(0x08080b, 1);
             this.renderer.outputColorSpace = T.SRGBColorSpace;
             this.scene = new T.Scene();
@@ -1328,7 +1339,9 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
                 event.preventDefault(); this.available = false; this.active = false;
                 window.dispatchEvent(new CustomEvent('visual-lab-fallback', { detail: 'Grafikkontext wurde zurückgesetzt.' }));
             });
-            this.canvas.addEventListener('webglcontextrestored', () => window.location.reload());
+            this.canvas.addEventListener('webglcontextrestored', () => {
+                window.dispatchEvent(new CustomEvent('visual-lab-fallback', { detail: 'Visual Lab pausiert. Classic bleibt aktiv; ein Neuladen reaktiviert V5.' }));
+            });
             this.available = true;
             this.animate();
         }
@@ -1339,7 +1352,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
                 attribute vec4 aData;
                 uniform float uFlowTime, uBreath, uPulse, uResponse, uFamily, uLayerWeight, uForm, uMotion, uDepth, uLight, uAtmosphere, uSymmetry, uWarp, uScale, uPointScale, uColorVariance;
                 uniform vec2 uDrift; uniform vec3 uColor, uAccent, uSecond;
-                varying mediump float vAlpha; varying mediump float vSpark; varying mediump vec3 vParticleColor;
+                varying mediump float vAlpha; varying mediump float vSpark; varying mediump float vDust; varying mediump vec3 vParticleColor;
                 #define PI 3.14159265359
                 mat2 rot(float a){float s=sin(a),c=cos(a);return mat2(c,-s,s,c);}
                 vec3 visualShape(float family,vec3 base,float angle,float radius,float z,float energy,float space,float breathSignal,float breathe,float speed,float arms){
@@ -1396,41 +1409,52 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
                     float energy=mix(0.58,1.42,uDrift.x);
                     float space=mix(0.72,1.38,uDrift.y);
                     float breathSignal=(uBreath-0.5)*2.0;
-                    float classicBreathe=0.78+uBreath*(0.36+uForm*0.34);
-                    float breathe=mix(1.0,classicBreathe,uResponse);
+                    float breathEase=uBreath*uBreath*(3.0-2.0*uBreath);
+                    float breathDepth=uResponse*(0.55+uResponse*0.45);
+                    float breathe=mix(1.0,mix(0.72,1.36,breathEase),breathDepth);
                     float speed=(0.12+uMotion*0.82)*energy;
                     float arms=floor(3.0+uSymmetry*9.0);
+                    float dustSeed=fract(rnd*17.31+aData.y*9.17+uFamily*0.131);
+                    float dustGate=smoothstep(0.985-uAtmosphere*0.18,1.0,dustSeed);
+                    float dustIntensity=dustGate*(0.25+fract(rnd*47.17)*0.75);
                     vec3 p=visualShape(uFamily,position,angle,radius,z,energy,space,breathSignal,breathe,speed,arms);
+                    p*=1.0+dustIntensity*uAtmosphere*(0.04+rnd*0.14);
                     p.xy*=0.72+uScale*0.62;
                     p.z*=0.68+uDepth*0.58;
                     p.xz*=rot(uFlowTime*(0.008+uMotion*0.055)+(uBreath-0.5)*0.12*uWarp*uResponse);
                     p.xy*=rot(sin(uFlowTime*0.09)*uMotion*0.12);
-                    p+=normalize(p+0.001)*sin(uFlowTime*speed+rnd*31.0)*uAtmosphere*(0.045+uWarp*0.12)*energy;
+                    p+=normalize(p+0.001)*sin(uFlowTime*speed+rnd*31.0)*uAtmosphere*(0.018+uWarp*0.065+dustIntensity*0.12)*energy;
                     vec4 mv=modelViewMatrix*vec4(p,1.0);
                     gl_Position=projectionMatrix*mv;
                     float perspective=clamp(250.0/max(2.0,-mv.z),0.55,5.5);
                     float layerFade=smoothstep(0.0,0.025,uLayerWeight)*uLayerWeight;
-                    gl_PointSize=(0.88+rnd*1.82+uLight*1.22+uPulse*1.32*uResponse)*uPointScale*perspective*(0.84+energy*0.22);
-                    vAlpha=(0.17+rnd*0.48)*(0.64+uLight*0.46)*layerFade;
+                    float lightHot=uLight*uLight*uLight;
+                    gl_PointSize=(0.82+rnd*1.72+uLight*1.05+lightHot*2.8+dustIntensity*(0.35+uAtmosphere*0.9)+uPulse*1.32*uResponse)*uPointScale*perspective*(0.84+energy*0.22);
+                    vAlpha=(0.14+rnd*0.42)*(0.58+uLight*0.34+lightHot*0.98)*(0.82+dustIntensity*(0.24+uAtmosphere*0.72))*layerFade;
                     float colorBand=fract(rnd*0.72+radius*0.38+uForm*0.27+uBreath*0.12+uFamily*0.071);
-                    float spread=clamp(uColorVariance,0.0,1.0);
-                    vec3 oldColor=mix(uColor,uAccent,smoothstep(0.16,0.58,colorBand));
-                    oldColor=mix(oldColor,uSecond,smoothstep(0.62,0.96,colorBand)*0.72);
-                    vParticleColor=mix(uColor,oldColor,spread);
-                    vSpark=step(0.91,rnd)*(0.45+uPulse*0.5*uResponse);
+                    float spread=pow(clamp(uColorVariance,0.0,1.0),0.72);
+                    float accentBand=smoothstep(0.12,0.42,colorBand)*(1.0-smoothstep(0.56,0.72,colorBand));
+                    float secondBand=smoothstep(0.54,0.9,colorBand);
+                    vec3 variedColor=mix(uColor,uAccent,accentBand*0.94);
+                    variedColor=mix(variedColor,uSecond,secondBand*0.86);
+                    float toneVariation=mix(1.0,mix(0.82,1.24,fract(rnd*29.73)),spread*0.42);
+                    vParticleColor=mix(uColor,variedColor,spread)*toneVariation;
+                    vDust=dustIntensity;
+                    vSpark=max(step(0.91,rnd)*(0.45+uPulse*0.5*uResponse),dustIntensity*(0.16+uAtmosphere*0.48));
                 }`;
             const fragmentShader = `
                 precision highp float;
                 uniform float uLight, uAtmosphere, uPulse, uResponse;
-                varying mediump float vAlpha; varying mediump float vSpark; varying mediump vec3 vParticleColor;
+                varying mediump float vAlpha; varying mediump float vSpark; varying mediump float vDust; varying mediump vec3 vParticleColor;
                 void main(){
                     vec2 q=gl_PointCoord-0.5; float d=length(q);
                     float halo=smoothstep(0.5,0.0,d);
                     float core=smoothstep(0.2,0.0,d);
                     if(halo<0.01) discard;
                     vec3 color=vParticleColor;
-                    color*=0.58+core*(0.92+uLight+uPulse*0.42*uResponse+vSpark);
-                    float alpha=halo*vAlpha*(0.68+uAtmosphere*0.32)+core*vSpark*0.3;
+                    float lightHot=uLight*uLight*uLight;
+                    color*=0.52+halo*uLight*0.14+core*(0.86+uLight*0.72+lightHot*1.65+uPulse*0.42*uResponse+vSpark);
+                    float alpha=halo*vAlpha*(0.62+uAtmosphere*0.38)+core*(vSpark*(0.22+vDust*0.24)+lightHot*0.055);
                     gl_FragColor=vec4(color,alpha);
                 }`;
             const sharedPosition = new T.BufferAttribute(new Float32Array(this.maxPoints * 3), 3);
@@ -1459,7 +1483,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             const material = new T.ShaderMaterial({
                 uniforms,
                 vertexShader: `uniform float uFlowTime,uBreath,uMotion,uAtmosphere,uWarp,uForm,uResponse; varying mediump float vWave; void main(){vec3 p=position;float w=sin(p.x*(4.0+uForm*5.0)+uFlowTime*(0.25+uMotion))+cos(p.y*(5.0+uWarp*4.0)-uFlowTime*0.22);p+=normal*w*(0.025+uAtmosphere*0.11);p*=1.0+(uBreath-0.5)*0.65*uResponse;vWave=w;gl_Position=projectionMatrix*modelViewMatrix*vec4(p,1.0);}`,
-                fragmentShader: `precision highp float;uniform vec3 uColor,uAccent,uSecond;uniform float uLight,uPulse,uResponse,uColorVariance,uCoreWeight;varying mediump float vWave;void main(){float variance=sqrt(clamp(uColorVariance,0.0,1.0));vec3 c=mix(uColor,uAccent,variance*(0.24+max(0.0,vWave)*0.14));c=mix(c,uSecond,max(0.0,-vWave)*0.14*variance);c*=1.08+uLight*0.28;gl_FragColor=vec4(c,(0.16+uLight*0.25+uPulse*0.06*uResponse)*uCoreWeight);}`,
+                fragmentShader: `precision highp float;uniform vec3 uColor,uAccent,uSecond;uniform float uLight,uPulse,uResponse,uColorVariance,uCoreWeight;varying mediump float vWave;void main(){float variance=pow(clamp(uColorVariance,0.0,1.0),0.72);float hot=uLight*uLight*uLight;vec3 c=mix(uColor,uAccent,variance*(0.3+max(0.0,vWave)*0.28));c=mix(c,uSecond,max(0.0,-vWave)*0.26*variance);c*=0.94+uLight*0.38+hot;gl_FragColor=vec4(c,(0.12+uLight*0.2+hot*0.34+uPulse*0.06*uResponse)*uCoreWeight);}`,
                 transparent: true, wireframe: true, depthWrite: false, blending: T.AdditiveBlending
             });
             this.core = new T.Mesh(new T.IcosahedronGeometry(1.38, this.mobile ? 2 : 3), material);
@@ -1571,15 +1595,16 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             this.uniforms.uColor.value.setStyle(`rgb(${primary.r},${primary.g},${primary.b})`);
             const baseHsl = { h:0, s:0, l:0 };
             this.uniforms.uColor.value.getHSL(baseHsl);
+            const paletteSaturation = Math.max(0.42, baseHsl.s);
             this.uniforms.uAccent.value.setHSL(
-                (baseHsl.h + 0.07) % 1,
-                Math.min(0.76, Math.max(0.3, baseHsl.s + 0.04)),
-                Math.min(0.86, baseHsl.l + 0.2)
+                (baseHsl.h + 0.16) % 1,
+                Math.min(0.84, paletteSaturation + 0.12),
+                Math.min(0.88, Math.max(0.42, baseHsl.l + 0.18))
             );
             this.uniforms.uSecond.value.setHSL(
-                (baseHsl.h + 0.93) % 1,
-                Math.min(0.68, Math.max(0.24, baseHsl.s * 0.88)),
-                Math.min(0.76, baseHsl.l + 0.06)
+                (baseHsl.h + 0.87) % 1,
+                Math.min(0.78, paletteSaturation + 0.05),
+                Math.min(0.82, Math.max(0.34, baseHsl.l + 0.07))
             );
             this.ringMaterial.color.copy(this.uniforms.uColor.value);
             this.coreGlowMaterial.color.copy(this.uniforms.uAccent.value);
@@ -1605,8 +1630,13 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             if (!this.renderer || !this.canvas.parentElement) return;
             const rect = this.canvas.parentElement.getBoundingClientRect();
             const width = Math.max(1, Math.floor(rect.width)), height = Math.max(1, Math.floor(rect.height));
-            this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, this.dprCap) * Math.sqrt(this.qualityScale));
-            this.renderer.setSize(width, height, false);
+            const pixelWidth = Math.max(1, Math.round(width * this.renderPixelRatio));
+            const pixelHeight = Math.max(1, Math.round(height * this.renderPixelRatio));
+            if (pixelWidth !== this.lastPixelWidth || pixelHeight !== this.lastPixelHeight) {
+                this.renderer.setPixelRatio(this.renderPixelRatio);
+                this.renderer.setSize(width, height, false);
+                this.lastPixelWidth = pixelWidth; this.lastPixelHeight = pixelHeight;
+            }
             this.camera.aspect = width / height; this.camera.updateProjectionMatrix();
             this.uniforms.uPointScale.value = Math.min(width, height) / 720;
         }
@@ -1625,7 +1655,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
                 if (this.goodQualityWindows >= 5) { next = Math.min(this.maxQualityScale, next + 0.035); this.goodQualityWindows = 0; }
             } else this.goodQualityWindows = 0;
             if (Math.abs(next - this.qualityScale) > 0.001) {
-                this.qualityScale = next; this.lastQualityChange = now; this.updateDrawRange(); this.resize();
+                this.qualityScale = next; this.lastQualityChange = now; this.updateDrawRange();
                 window.dispatchEvent(new CustomEvent('visual-lab-quality', { detail: { scale: next, fps: Math.round(1000/Math.max(1,avg)) } }));
             }
         }
@@ -1643,9 +1673,12 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             const pauseStrength = Math.min(1, this.turnAccent * (0.2 + this.recipe.response * 2.6));
             const flowDt = dt * (1 - pauseStrength);
             this.flowTime += flowDt * 0.001; u.uFlowTime.value = this.flowTime;
-            const breathScale = 1 + (u.uBreath.value-0.5) * (0.1 + this.recipe.form * 0.16) * this.recipe.response;
+            const breathSignal = (u.uBreath.value - 0.5) * 2;
+            const breathDepth = this.recipe.response * (0.55 + this.recipe.response * 0.45);
+            const breathScale = 1 + breathSignal * (0.12 + this.recipe.form * 0.1) * breathDepth;
             this.root.scale.setScalar(breathScale);
-            this.autoYaw += flowDt * 0.00012 * this.recipe.rotation * (0.35 + this.recipe.motion * 1.65);
+            // Rotation should support spatial depth without competing with coherent breathing.
+            this.autoYaw += flowDt * 0.000055 * this.recipe.rotation * (0.35 + this.recipe.motion * 1.15);
             if (!this.manualDragging) {
                 const frame = flowDt / 16.67;
                 this.manualYaw += this.manualVelocityYaw * frame;
@@ -1662,11 +1695,12 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             this.rings.visible = this.ringBlend > 0.004;
             this.core.rotation.x += flowDt * 0.0001 * (0.4 + this.recipe.motion); this.core.rotation.y -= flowDt * 0.00014 * (0.4 + this.recipe.motion);
             this.coreGlow.scale.setScalar(1 + (u.uBreath.value-0.5)*0.34*this.recipe.response);
-            this.coreGlowMaterial.opacity = (0.028 + this.recipe.light * 0.066 + this.pulse*0.01*this.recipe.response) * this.coreBlend;
+            const lightHot = this.recipe.light * this.recipe.light * this.recipe.light;
+            this.coreGlowMaterial.opacity = (0.024 + this.recipe.light * 0.065 + lightHot * 0.14 + this.pulse*0.012*this.recipe.response) * this.coreBlend;
             this.rings.rotation.z -= flowDt * 0.000035 * (0.2 + this.recipe.motion * 2.0);
             this.rings.rotation.x = Math.sin(this.flowTime*0.09) * this.recipe.depth * 0.25;
             this.rings.scale.setScalar(0.98 + (u.uBreath.value-0.5)*0.16*this.recipe.response + this.recipe.scale * 0.08);
-            this.ringMaterial.opacity = (0.072 + this.recipe.atmosphere * 0.13 + this.pulse*0.014*this.recipe.response) * this.ringBlend;
+            this.ringMaterial.opacity = (0.05 + this.recipe.atmosphere * 0.1 + this.recipe.light * 0.04 + lightHot * 0.1 + this.pulse*0.014*this.recipe.response) * this.ringBlend;
             const tunnelBlend = this.layerFamilies.reduce((sum, family, index) => sum + (family === 2 ? this.layerBudgetWeights[index] : 0), 0);
             const tunnelTravel = ((this.flowTime*(0.08+this.recipe.motion*0.22))%1.8) * Math.min(1, tunnelBlend);
             this.camera.position.z = 8.4 - tunnelTravel;
@@ -2338,7 +2372,9 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             ['form','motion','depth','light','complexity','atmosphere'].forEach(key => {
                 next[key] = respectTargets && !this.visualTargets.has(key) ? this.visualRecipe[key] : sample(ranges[key]);
             });
-            next.rotation = respectTargets && !this.visualTargets.has('rotation') ? this.visualRecipe.rotation : (0.16 + random.next() * 0.72) * (random.next() < 0.22 ? -1 : 1);
+            next.rotation = respectTargets && !this.visualTargets.has('rotation')
+                ? this.visualRecipe.rotation
+                : (0.04 + random.next() * 0.38) * (random.next() < 0.5 ? -1 : 1);
             next.response = respectTargets && !this.visualTargets.has('response') ? this.visualRecipe.response : 0.38 + random.next() * 0.5;
             next.colorVariance = respectTargets && !this.visualTargets.has('colorVariance') ? this.visualRecipe.colorVariance : 0.18 + random.next() * 0.68;
             next.symmetry = structuralTarget ? 0.22 + random.next() * 0.76 : this.visualRecipe.symmetry;
@@ -2367,7 +2403,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             const preset = PURE_VISUAL_SETS[family]; if (!preset) return;
             const recipe = Object.assign({
                 family, motion:0.18, light:0.62, complexity:0.45, atmosphere:0.28,
-                rotation:0.08, response:0.6, colorVariance:0.35, symmetry:0.68, warp:0.2, density:0.52, scale:0.52
+                rotation:(family % 2 ? -1 : 1) * (0.045 + (family % 3) * 0.015), response:0.6, colorVariance:0.35, symmetry:0.68, warp:0.2, density:0.52, scale:0.52
             }, preset);
             const color = recipe.color; delete recipe.color;
             this.labPadCorners = { tl:family, tr:family, bl:family, br:family };
