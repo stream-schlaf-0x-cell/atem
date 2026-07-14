@@ -543,7 +543,7 @@
     <div id="xy-pad-container">
         <section id="visual-lab">
             <div class="visual-lab-head">
-                <div class="visual-lab-title"><strong>Visual Lab</strong><small>V5 · klarer Form-Crossfader</small></div>
+                <div class="visual-lab-title"><strong>Visual Lab</strong><small>V5.2 · räumlicher Form-Crossfader</small></div>
                 <div class="engine-switch" role="group" aria-label="Visual Engine">
                     <button id="engine-three" type="button" onclick="app.setVisualEngine('three')">V5 Lab</button>
                     <button id="engine-canvas" class="active" type="button" onclick="app.setVisualEngine('canvas')">Classic</button>
@@ -569,6 +569,7 @@
                     <div class="lab-slider"><label><span>Rotation</span><output id="lab-rotation-val">20</output></label><input id="lab-rotation" type="range" min="-1" max="1" step="0.01" value="0.2"></div>
                     <div class="lab-slider"><label><span>Atem-Reaktion</span><output id="lab-response-val">68</output></label><input id="lab-response" type="range" min="0" max="1" step="0.01" value="0.68"></div>
                     <div class="lab-slider"><label><span>Farbvarianz</span><output id="lab-colorVariance-val">46</output></label><input id="lab-colorVariance" type="range" min="0" max="1" step="0.01" value="0.46"></div>
+                    <div class="lab-slider"><label><span>Chaos</span><output id="lab-chaos-val">22</output></label><input id="lab-chaos" type="range" min="0" max="1" step="0.01" value="0.22"></div>
                 </div>
                 <div class="lab-drift-panel">
                     <div class="lab-drive-toggles">
@@ -592,6 +593,7 @@
                     <button id="target-rotation" type="button" class="chip active" onclick="app.toggleVisualTarget('rotation')">Rotation</button>
                     <button id="target-response" type="button" class="chip active" onclick="app.toggleVisualTarget('response')">Atem-Reaktion</button>
                     <button id="target-colorVariance" type="button" class="chip active" onclick="app.toggleVisualTarget('colorVariance')">Farbvarianz</button>
+                    <button id="target-chaos" type="button" class="chip active" onclick="app.toggleVisualTarget('chaos')">Chaos</button>
                     <button id="target-color" type="button" class="chip active" onclick="app.toggleVisualTarget('color')">Farbe</button>
                 </div>
                 <div class="lab-actions">
@@ -748,12 +750,13 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             this.width = 0; this.height = 0; this.centerX = 0; this.centerY = 0;
             // V3 structure: 6 modes
             this.weights = { mist: 1, circle: 0, ripple: 0, luma: 0, leere: 0, aura: 0 };
-            this.breathValue = 0.5; this.colors = { r:138, g:138, b:138 };
+            this.breathValue = 0.5; this.breathTarget = 0.5; this.colors = { r:138, g:138, b:138 };
             this.colorVariance = 0.5;
             this.accentColor = { r:138, g:138, b:138 }; this.secondColor = { r:138, g:138, b:138 };
             this.paletteInputKey = '';
             this.bgR = 10; this.bgG = 10; this.bgB = 10;
             this.randomness = 0; this.intensity = 0.75; this.lumaPoints = 8;
+            this.spatialDepth = 0.55;
             this.overdrive = 0;
             this.tapPulse = 0; this.phase = 'hold-empty';
             this.audioBass = 0;
@@ -877,10 +880,13 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             this.initParticles = false;
         }
         setBreathState(v, p) {
-            this.breathValue = v; this.phase = p;
+            const next = Number(v);
+            if (Number.isFinite(next)) this.breathTarget = Math.max(0, Math.min(1, next));
+            this.phase = p;
         }
         triggerPulse(intensity = 1.0) { this.tapPulse = Math.max(this.tapPulse, intensity); }
-        setRandomness(v) { this.randomness = v; }
+        setRandomness(v) { this.randomness = Math.max(0, Math.min(1, Number(v) || 0)); }
+        setSpatialDepth(v) { this.spatialDepth = Math.max(0, Math.min(1, Number(v) || 0)); }
         setIntensity(v) { this.intensity = v; }
         setLumaPoints(v) { this.lumaPoints = v; }
         setOverdrive(v) { 
@@ -944,14 +950,22 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
         }
         applyManualTransform() {
             if (Math.abs(this.manualYaw) < 0.0001 && Math.abs(this.manualPitch) < 0.0001) return false;
-            const yawTilt = Math.sin(this.manualYaw) * 0.075;
-            const pitchTilt = Math.sin(this.manualPitch) * 0.12;
+            const depth = 0.35 + this.spatialDepth * 0.65;
+            const yawTilt = Math.sin(this.manualYaw) * 0.095 * depth;
+            const pitchTilt = Math.sin(this.manualPitch) * 0.145 * depth;
+            const parallax = Math.min(this.width, this.height) * 0.026 * depth;
             this.ctx.save();
-            this.ctx.translate(this.centerX, this.centerY);
+            this.ctx.translate(this.centerX + Math.sin(this.manualYaw) * parallax, this.centerY - Math.sin(this.manualPitch) * parallax * 0.72);
             this.ctx.rotate(this.manualYaw * 0.34 + this.manualPitch * 0.06);
             this.ctx.transform(1, pitchTilt, yawTilt, 0.94 + Math.cos(this.manualPitch) * 0.06, 0, 0);
             this.ctx.translate(-this.centerX, -this.centerY);
             return true;
+        }
+
+        renderClassicGeometry(pulseBoost, opacity = 1) {
+            if (this.weights.circle > 0.01) { this.ctx.save(); this.ctx.globalAlpha = this.weights.circle * opacity; this.renderCircle(pulseBoost); this.ctx.restore(); }
+            if (this.weights.ripple > 0.01) { this.ctx.save(); this.ctx.globalAlpha = this.weights.ripple * opacity; this.renderRipple(pulseBoost); this.ctx.restore(); }
+            if (this.weights.luma > 0.01) { this.ctx.save(); this.ctx.globalAlpha = this.weights.luma * opacity; this.renderLuma(pulseBoost); this.ctx.restore(); }
         }
 
         animate() {
@@ -961,11 +975,17 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             if (this.hybridActive && this.hybridMixStrength <= 0.002) { this.lastFrameTime = now; return; }
             if (this.hybridActive && now - this.lastHybridFrame < this.hybridFrameInterval) return;
             if (this.hybridActive) this.lastHybridFrame = now;
-            const dt = now - this.lastFrameTime;
+            const rawDt = now - this.lastFrameTime;
             this.lastFrameTime = now;
-            this.visualTime += Math.min(24, Math.max(0, dt));
+            // A delayed Safari frame must not be replayed as one large visual step. The
+            // pacer remains wall-clock accurate; only decorative movement is capped.
+            const motionCap = this.hybridActive ? Math.min(22, Math.max(18, this.hybridFrameInterval * 1.06)) : 18.5;
+            const dt = Math.min(motionCap, Math.max(0, rawDt));
+            this.visualTime += dt;
+            const breathBlend = 1 - Math.exp(-dt * 0.018);
+            this.breathValue += (this.breathTarget - this.breathValue) * breathBlend;
             this.stepManualRotation(dt);
-            if (dt > 40) {
+            if (rawDt > 40) {
                 this.lowFpsFrames++;
             } else {
                 this.lowFpsFrames = Math.max(0, this.lowFpsFrames - 1);
@@ -1026,9 +1046,21 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
                 this.ctx.restore();
                 this.ctx.globalCompositeOperation = 'lighter';
             }
-            if (this.weights.circle > 0.01) { this.ctx.save(); this.ctx.globalAlpha = this.weights.circle; this.renderCircle(pulseBoost); this.ctx.restore(); }
-            if (this.weights.ripple > 0.01) { this.ctx.save(); this.ctx.globalAlpha = this.weights.ripple; this.renderRipple(pulseBoost); this.ctx.restore(); }
-            if (this.weights.luma > 0.01) { this.ctx.save(); this.ctx.globalAlpha = this.weights.luma; this.renderLuma(pulseBoost); this.ctx.restore(); }
+            // A restrained rear projection gives the geometric Classic modes real parallax
+            // and volume without converting the proven Canvas formulas into costly meshes.
+            const classicGeometry = Math.max(this.weights.circle || 0, this.weights.ripple || 0, this.weights.luma || 0);
+            if (this.hybridActive && classicGeometry > 0.01 && this.spatialDepth > 0.04) {
+                const depth = this.spatialDepth;
+                const parallax = Math.min(this.width, this.height) * (0.008 + depth * 0.018);
+                this.ctx.save();
+                this.ctx.translate(this.centerX - Math.sin(this.manualYaw) * parallax, this.centerY + Math.sin(this.manualPitch) * parallax * 0.75);
+                const rearScale = 0.9 + (1 - depth) * 0.045;
+                this.ctx.scale(rearScale, rearScale);
+                this.ctx.translate(-this.centerX, -this.centerY);
+                this.renderClassicGeometry(pulseBoost * 0.55, 0.14 + depth * 0.14);
+                this.ctx.restore();
+            }
+            this.renderClassicGeometry(pulseBoost, 1);
             if (manualTransformActive) this.ctx.restore();
 
             /* V4 TAP FLASH: V2's mist-weighted glow */
@@ -1286,20 +1318,20 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     }
 
     const VISUAL_FAMILIES = [
-        { id:'bloom', name:'Blüte', mood:'organisch', centerMesh:1, ringProfile:'bloom', ranges:{ form:[.28,.82], motion:[.28,.66], depth:[.38,.72], light:[.58,.9], complexity:[.42,.82], atmosphere:[.28,.66] } },
-        { id:'spiral', name:'Spirale', mood:'kosmisch', ringProfile:'spiral', ranges:{ form:[.24,.78], motion:[.42,.82], depth:[.55,.9], light:[.5,.84], complexity:[.48,.9], atmosphere:[.22,.58] } },
-        { id:'tunnel', name:'Tunnel', mood:'cinematisch', ringProfile:'tunnel', ranges:{ form:[.2,.76], motion:[.34,.76], depth:[.72,.98], light:[.48,.82], complexity:[.42,.86], atmosphere:[.2,.56] } },
-        { id:'veil', name:'Schleier', mood:'weich', ranges:{ form:[.18,.72], motion:[.24,.62], depth:[.35,.78], light:[.48,.8], complexity:[.34,.76], atmosphere:[.5,.9] } },
-        { id:'orbit', name:'Orbit', mood:'präzise', ringProfile:'orbit', ranges:{ form:[.3,.86], motion:[.36,.74], depth:[.5,.86], light:[.58,.9], complexity:[.4,.82], atmosphere:[.18,.52] } },
-        { id:'cathedral', name:'Kathedrale', mood:'monumental', ringProfile:'cathedral', ranges:{ form:[.24,.74], motion:[.18,.52], depth:[.68,.96], light:[.52,.88], complexity:[.46,.86], atmosphere:[.34,.72] } },
-        { id:'mandala', name:'Mandala', mood:'rhythmisch', ringProfile:'mandala', ranges:{ form:[.26,.88], motion:[.3,.7], depth:[.3,.7], light:[.6,.94], complexity:[.46,.9], atmosphere:[.16,.54] } },
-        { id:'aurora', name:'Aurora', mood:'fluid', ranges:{ form:[.16,.76], motion:[.38,.78], depth:[.44,.82], light:[.56,.9], complexity:[.38,.8], atmosphere:[.52,.94] } },
-        { id:'classic-mist', name:'Nebel', mood:'flächig', classicMode:'mist', ranges:{ form:[.28,.7], motion:[.18,.58], depth:[.3,.68], light:[.42,.76], complexity:[.24,.62], atmosphere:[.58,.92] } },
-        { id:'classic-circle', name:'Licht', mood:'ruhig', classicMode:'circle', ranges:{ form:[.38,.8], motion:[.12,.48], depth:[.24,.62], light:[.62,.94], complexity:[.2,.58], atmosphere:[.28,.68] } },
-        { id:'classic-ripple', name:'Welle', mood:'weich', classicMode:'ripple', ranges:{ form:[.3,.76], motion:[.2,.62], depth:[.3,.7], light:[.52,.86], complexity:[.3,.7], atmosphere:[.34,.74] } },
-        { id:'classic-luma', name:'Linien', mood:'grafisch', classicMode:'luma', ranges:{ form:[.34,.82], motion:[.2,.58], depth:[.28,.66], light:[.56,.9], complexity:[.38,.82], atmosphere:[.2,.58] } },
-        { id:'classic-empty', name:'Leere', mood:'meditativ', classicMode:'leere', ranges:{ form:[.3,.72], motion:[.1,.42], depth:[.38,.78], light:[.42,.78], complexity:[.28,.68], atmosphere:[.32,.72] } },
-        { id:'classic-aura', name:'Aura', mood:'sanft', classicMode:'aura', ranges:{ form:[.28,.72], motion:[.16,.5], depth:[.34,.74], light:[.54,.88], complexity:[.24,.62], atmosphere:[.54,.92] } }
+        { id:'bloom', name:'Blüte', mood:'organisch', centerMesh:1, ringProfile:'bloom', ranges:{ form:[.28,.82], motion:[.28,.66], depth:[.38,.72], light:[.58,.9], complexity:[.42,.82], atmosphere:[.28,.66], chaos:[.08,.42] } },
+        { id:'spiral', name:'Spirale', mood:'kosmisch', ringProfile:'spiral', ranges:{ form:[.24,.78], motion:[.42,.82], depth:[.55,.9], light:[.5,.84], complexity:[.48,.9], atmosphere:[.22,.58], chaos:[.16,.56] } },
+        { id:'tunnel', name:'Tunnel', mood:'cinematisch', ringProfile:'tunnel', ranges:{ form:[.2,.76], motion:[.34,.76], depth:[.72,.98], light:[.48,.82], complexity:[.42,.86], atmosphere:[.2,.56], chaos:[.08,.34] } },
+        { id:'veil', name:'Schleier', mood:'weich', ranges:{ form:[.18,.72], motion:[.24,.62], depth:[.35,.78], light:[.48,.8], complexity:[.34,.76], atmosphere:[.5,.9], chaos:[.18,.62] } },
+        { id:'orbit', name:'Orbit', mood:'präzise', ringProfile:'orbit', ranges:{ form:[.3,.86], motion:[.36,.74], depth:[.5,.86], light:[.58,.9], complexity:[.4,.82], atmosphere:[.18,.52], chaos:[.04,.28] } },
+        { id:'cathedral', name:'Kathedrale', mood:'monumental', ringProfile:'cathedral', ranges:{ form:[.24,.74], motion:[.18,.52], depth:[.68,.96], light:[.52,.88], complexity:[.46,.86], atmosphere:[.34,.72], chaos:[.04,.26] } },
+        { id:'mandala', name:'Mandala', mood:'rhythmisch', ringProfile:'mandala', ranges:{ form:[.26,.88], motion:[.3,.7], depth:[.3,.7], light:[.6,.94], complexity:[.46,.9], atmosphere:[.16,.54], chaos:[.06,.38] } },
+        { id:'aurora', name:'Aurora', mood:'fluid', ranges:{ form:[.16,.76], motion:[.38,.78], depth:[.44,.82], light:[.56,.9], complexity:[.38,.8], atmosphere:[.52,.94], chaos:[.2,.66] } },
+        { id:'classic-mist', name:'Nebel', mood:'flächig', classicMode:'mist', ranges:{ form:[.28,.7], motion:[.18,.58], depth:[.3,.68], light:[.42,.76], complexity:[.24,.62], atmosphere:[.58,.92], chaos:[.16,.46] } },
+        { id:'classic-circle', name:'Licht', mood:'ruhig', classicMode:'circle', ranges:{ form:[.38,.8], motion:[.12,.48], depth:[.24,.62], light:[.62,.94], complexity:[.2,.58], atmosphere:[.28,.68], chaos:[0,.1] } },
+        { id:'classic-ripple', name:'Welle', mood:'weich', classicMode:'ripple', ranges:{ form:[.3,.76], motion:[.2,.62], depth:[.3,.7], light:[.52,.86], complexity:[.3,.7], atmosphere:[.34,.74], chaos:[.12,.32] } },
+        { id:'classic-luma', name:'Linien', mood:'grafisch', classicMode:'luma', ranges:{ form:[.34,.82], motion:[.2,.58], depth:[.28,.66], light:[.56,.9], complexity:[.38,.82], atmosphere:[.2,.58], chaos:[.1,.42] } },
+        { id:'classic-empty', name:'Leere', mood:'meditativ', classicMode:'leere', ranges:{ form:[.3,.72], motion:[.1,.42], depth:[.38,.78], light:[.42,.78], complexity:[.28,.68], atmosphere:[.32,.72], chaos:[.06,.3] } },
+        { id:'classic-aura', name:'Aura', mood:'sanft', classicMode:'aura', ranges:{ form:[.28,.72], motion:[.16,.5], depth:[.34,.74], light:[.54,.88], complexity:[.24,.62], atmosphere:[.54,.92], chaos:[.08,.3] } }
     ];
     const THREE_FAMILY_COUNT = 8;
     const CLASSIC_FAMILY_BY_MODE = { mist:8, circle:9, ripple:10, luma:11, leere:12, aura:13 };
@@ -1331,7 +1363,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             this.lastRenderTime = 0;
             this.lastQualityChange = 0;
             this.goodQualityWindows = 0;
-            this.recipe = { seed: 0x51a7e1, family: 0, form: 0.63, motion: 0.46, depth: 0.68, light: 0.72, complexity: 0.62, atmosphere: 0.42, rotation: 0.2, response: 0.68, colorVariance: 0.46, symmetry: 0.7, warp: 0.38, density: 0.68, scale: 0.55 };
+            this.recipe = { seed: 0x51a7e1, family: 0, form: 0.63, motion: 0.46, depth: 0.68, light: 0.72, complexity: 0.62, atmosphere: 0.42, rotation: 0.2, response: 0.68, colorVariance: 0.46, chaos: 0.22, symmetry: 0.7, warp: 0.38, density: 0.68, scale: 0.55 };
             this.drift = { x: 0.5, y: 0.5 };
             this.autoYaw = 0; this.manualYaw = 0; this.manualPitch = 0;
             this.manualVelocityYaw = 0; this.manualVelocityPitch = 0; this.manualDragging = false;
@@ -1409,7 +1441,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             this.root = new T.Group();
             this.scene.add(this.root);
             this.uniforms = {
-                uTime: { value: 0 }, uFlowTime: { value: 0 }, uBreath: { value: 0.5 }, uPulse: { value: 0 }, uResponse: { value: 0.62 }, uColorVariance: { value: 0.38 }, uCoreWeight: { value: 1 },
+                uTime: { value: 0 }, uFlowTime: { value: 0 }, uBreath: { value: 0.5 }, uPulse: { value: 0 }, uResponse: { value: 0.62 }, uColorVariance: { value: 0.38 }, uChaos: { value: 0.22 }, uCoreWeight: { value: 1 },
                 uFamily: { value: 0 }, uForm: { value: 0.5 }, uMotion: { value: 0.5 }, uDepth: { value: 0.6 },
                 uLight: { value: 0.55 }, uAtmosphere: { value: 0.45 },
                 uSymmetry: { value: 0.7 }, uWarp: { value: 0.42 }, uScale: { value: 0.55 },
@@ -1440,7 +1472,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             const vertexShader = `
                 precision highp float;
                 attribute vec4 aData;
-                uniform float uFlowTime, uBreath, uPulse, uResponse, uFamily, uLayerWeight, uForm, uMotion, uDepth, uLight, uAtmosphere, uSymmetry, uWarp, uScale, uPointScale, uColorVariance;
+                uniform float uFlowTime, uBreath, uPulse, uResponse, uFamily, uLayerWeight, uForm, uMotion, uDepth, uLight, uAtmosphere, uSymmetry, uWarp, uScale, uPointScale, uColorVariance, uChaos;
                 uniform vec2 uDrift; uniform vec3 uColor, uAccent, uSecond;
                 varying mediump float vAlpha; varying mediump float vSpark; varying mediump float vDust; varying mediump vec3 vParticleColor;
                 #define PI 3.14159265359
@@ -1508,6 +1540,8 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
                     float dustGate=smoothstep(0.985-uAtmosphere*0.18,1.0,dustSeed);
                     float dustIntensity=dustGate*(0.25+fract(rnd*47.17)*0.75);
                     vec3 p=visualShape(uFamily,position,angle,radius,z,energy,space,breathSignal,breathe,speed,arms);
+                    float chaosWave=sin(angle*(4.0+arms*0.35)+z*5.3+uFlowTime*speed*0.37+rnd*9.0)*cos(radius*11.0-z*3.0-uFlowTime*0.09);
+                    p+=normalize(vec3(p.y+0.17,p.z-0.11,p.x+0.09))*chaosWave*uChaos*(0.025+uChaos*0.18)*(0.35+uMotion*0.65);
                     p*=1.0+dustIntensity*uAtmosphere*(0.04+rnd*0.14);
                     p.xy*=0.72+uScale*0.62;
                     p.z*=0.68+uDepth*0.58;
@@ -1580,8 +1614,8 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
                 geometry.setAttribute('aBarycentric', new T.BufferAttribute(barycentric, 3));
             }
             const vertexShader = smoothEdges
-                ? `attribute vec3 aBarycentric;uniform float uFlowTime,uBreath,uMotion,uAtmosphere,uWarp,uForm,uResponse;varying mediump float vWave;varying mediump vec3 vBarycentric;varying mediump vec3 vNormal;varying mediump vec3 vViewDirection;void main(){vec3 p=position;float w=sin(p.x*(4.0+uForm*5.0)+uFlowTime*(0.25+uMotion))+cos(p.y*(5.0+uWarp*4.0)-uFlowTime*0.22);p+=normal*w*(0.025+uAtmosphere*0.11);p*=1.0+(uBreath-0.5)*0.65*uResponse;vec4 viewPosition=modelViewMatrix*vec4(p,1.0);vWave=w;vBarycentric=aBarycentric;vNormal=normalize(normalMatrix*normal);vViewDirection=normalize(-viewPosition.xyz);gl_Position=projectionMatrix*viewPosition;}`
-                : `uniform float uFlowTime,uBreath,uMotion,uAtmosphere,uWarp,uForm,uResponse;varying mediump float vWave;void main(){vec3 p=position;float w=sin(p.x*(4.0+uForm*5.0)+uFlowTime*(0.25+uMotion))+cos(p.y*(5.0+uWarp*4.0)-uFlowTime*0.22);p+=normal*w*(0.025+uAtmosphere*0.11);p*=1.0+(uBreath-0.5)*0.65*uResponse;vWave=w;gl_Position=projectionMatrix*modelViewMatrix*vec4(p,1.0);}`;
+                ? `attribute vec3 aBarycentric;uniform float uFlowTime,uBreath,uMotion,uAtmosphere,uWarp,uForm,uResponse,uChaos;varying mediump float vWave;varying mediump vec3 vBarycentric;varying mediump vec3 vNormal;varying mediump vec3 vViewDirection;void main(){vec3 p=position;float w=sin(p.x*(4.0+uForm*5.0)+uFlowTime*(0.25+uMotion))+cos(p.y*(5.0+uWarp*4.0)-uFlowTime*0.22);p+=normal*w*(0.025+uAtmosphere*0.11+uChaos*uChaos*0.075);p*=1.0+(uBreath-0.5)*0.65*uResponse;vec4 viewPosition=modelViewMatrix*vec4(p,1.0);vWave=w;vBarycentric=aBarycentric;vNormal=normalize(normalMatrix*normal);vViewDirection=normalize(-viewPosition.xyz);gl_Position=projectionMatrix*viewPosition;}`
+                : `uniform float uFlowTime,uBreath,uMotion,uAtmosphere,uWarp,uForm,uResponse,uChaos;varying mediump float vWave;void main(){vec3 p=position;float w=sin(p.x*(4.0+uForm*5.0)+uFlowTime*(0.25+uMotion))+cos(p.y*(5.0+uWarp*4.0)-uFlowTime*0.22);p+=normal*w*(0.025+uAtmosphere*0.11+uChaos*uChaos*0.075);p*=1.0+(uBreath-0.5)*0.65*uResponse;vWave=w;gl_Position=projectionMatrix*modelViewMatrix*vec4(p,1.0);}`;
             const fragmentShader = smoothEdges
                 ? `precision highp float;uniform vec3 uColor,uAccent,uSecond;uniform float uFlowTime,uLight,uPulse,uResponse,uColorVariance,uCoreWeight;varying mediump float vWave;varying mediump vec3 vBarycentric;varying mediump vec3 vNormal;varying mediump vec3 vViewDirection;void main(){vec3 width=fwidth(vBarycentric);vec3 inset=smoothstep(width*0.5,width*1.65,vBarycentric);float edge=1.0-min(min(inset.x,inset.y),inset.z);if(edge<0.015)discard;float variance=pow(clamp(uColorVariance,0.0,1.0),0.62);float fresnel=pow(1.0-max(0.0,dot(normalize(vNormal),normalize(vViewDirection))),1.65);float iris=0.5+0.5*sin(vWave*1.35+vNormal.y*4.8+vNormal.x*2.7+uFlowTime*0.11);vec3 chroma=mix(uSecond,uAccent,iris);vec3 c=mix(uColor,chroma,variance*(0.2+fresnel*0.66));float hot=uLight*uLight*uLight;c*=0.96+uLight*0.42+hot*1.05+fresnel*0.26;float alpha=edge*(0.14+uLight*0.2+hot*0.3+fresnel*0.2+uPulse*0.05*uResponse)*uCoreWeight;gl_FragColor=vec4(c,alpha);}`
                 : `precision highp float;uniform vec3 uColor,uAccent,uSecond;uniform float uLight,uPulse,uResponse,uColorVariance,uCoreWeight;varying mediump float vWave;void main(){float variance=pow(clamp(uColorVariance,0.0,1.0),0.62);float hot=uLight*uLight*uLight;float iris=0.5+0.5*sin(vWave*1.5);vec3 c=mix(uColor,mix(uSecond,uAccent,iris),variance*0.58);c*=0.94+uLight*0.38+hot;gl_FragColor=vec4(c,(0.12+uLight*0.2+hot*0.34+uPulse*0.06*uResponse)*uCoreWeight);}`;
@@ -1643,7 +1677,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             const u = this.uniforms;
             u.uFamily.value = this.recipe.family; u.uForm.value = this.recipe.form; u.uMotion.value = this.recipe.motion; u.uDepth.value = this.recipe.depth;
             u.uLight.value = this.recipe.light; u.uAtmosphere.value = this.recipe.atmosphere;
-            u.uResponse.value = this.recipe.response; u.uColorVariance.value = this.recipe.colorVariance;
+            u.uResponse.value = this.recipe.response; u.uColorVariance.value = this.recipe.colorVariance; u.uChaos.value = this.recipe.chaos;
             u.uSymmetry.value = this.recipe.symmetry; u.uWarp.value = this.recipe.warp; u.uScale.value = this.recipe.scale;
             this.camera.fov = 44 + this.recipe.depth * 38; this.camera.updateProjectionMatrix();
             this.updateDrawRange();
@@ -1805,7 +1839,9 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             const rawDt = now - this.lastFrame;
             // Never advance visible motion by several frames at once after a short browser
             // scheduling stall. Breath timing remains absolute; only decorative motion eases.
-            const dt = Math.min(24, rawDt); this.lastFrame = now;
+            const idealStep = this.targetFrameInterval || 16.67;
+            const motionCap = Math.min(24, Math.max(18, idealStep * 1.08));
+            const dt = Math.min(motionCap, rawDt); this.lastFrame = now;
             this.stepQuality(dt);
             const u = this.uniforms;
             u.uTime.value += dt * 0.001; u.uBreath.value += (this.breath-u.uBreath.value) * Math.min(1,dt*0.012);
@@ -1842,8 +1878,8 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             const orbitAccent = Math.min(1, this.ringProfiles.orbit || 0);
             const cathedralAccent = Math.min(1, this.ringProfiles.cathedral || 0);
             const mandalaAccent = Math.min(1, this.ringProfiles.mandala || 0);
-            this.rings.rotation.x = Math.sin(this.flowTime*0.09) * this.recipe.depth * 0.25 + cathedralAccent * 0.52 - mandalaAccent * 0.12;
-            this.rings.rotation.y = cathedralAccent * 0.34 + Math.sin(this.flowTime*0.07) * orbitAccent * 0.2;
+            this.rings.rotation.x = Math.sin(this.flowTime*0.09) * this.recipe.depth * 0.25 + cathedralAccent * 0.52 - mandalaAccent * 0.12 + Math.sin(this.flowTime*0.13+1.2)*this.recipe.chaos*0.08;
+            this.rings.rotation.y = cathedralAccent * 0.34 + Math.sin(this.flowTime*0.07) * orbitAccent * 0.2 + Math.cos(this.flowTime*0.11)*this.recipe.chaos*0.065;
             const ringScale = 0.98 + (u.uBreath.value-0.5)*0.16*this.recipe.response + this.recipe.scale * 0.08;
             this.rings.scale.set(
                 ringScale * (1 - cathedralAccent * 0.26 + mandalaAccent * 0.08),
@@ -2092,10 +2128,10 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
                 this.viz.hybridFrameInterval = this.infiniteViz.recommendedClassicFrameInterval;
             }
             this.visualEngine = 'canvas';
-            this.visualTargets = new Set(['family','form','motion','depth','light','complexity','atmosphere','rotation','response','colorVariance','color']);
+            this.visualTargets = new Set(['family','form','motion','depth','light','complexity','atmosphere','rotation','response','colorVariance','chaos','color']);
             this.visualHistoryStack = [];
             this.visualHistoryIndex = -1;
-            this.visualRecipe = { seed: 0x51a7e1, family: 0, form: 0.63, motion: 0.46, depth: 0.68, light: 0.72, complexity: 0.62, atmosphere: 0.42, rotation: 0.2, response: 0.68, colorVariance: 0.46, symmetry: 0.7, warp: 0.38, density: 0.68, scale: 0.55 };
+            this.visualRecipe = { seed: 0x51a7e1, family: 0, form: 0.63, motion: 0.46, depth: 0.68, light: 0.72, complexity: 0.62, atmosphere: 0.42, rotation: 0.2, response: 0.68, colorVariance: 0.46, chaos: 0.22, symmetry: 0.7, warp: 0.38, density: 0.68, scale: 0.55 };
             this.audio = new GentleAudio();
             this.lastVolume = this.audio.volume;
             this.isRunning = false; this.isStarting = false; this.isReverse = false; this.abortCtrl = null; this.sessionDuration = 0; this.startTime = 0;
@@ -2339,7 +2375,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             this.updateThemeColor(0);
             const labSliders = {
                 'lab-form': 'form', 'lab-motion': 'motion', 'lab-depth': 'depth',
-                'lab-light': 'light', 'lab-complexity': 'complexity', 'lab-atmosphere': 'atmosphere', 'lab-rotation': 'rotation', 'lab-response': 'response', 'lab-colorVariance': 'colorVariance'
+                'lab-light': 'light', 'lab-complexity': 'complexity', 'lab-atmosphere': 'atmosphere', 'lab-rotation': 'rotation', 'lab-response': 'response', 'lab-colorVariance': 'colorVariance', 'lab-chaos': 'chaos'
             };
             Object.entries(labSliders).forEach(([id, key]) => {
                 const slider = getEl(id);
@@ -2523,10 +2559,10 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
                 family: Math.max(0, Math.min(THREE_FAMILY_COUNT - 1, Math.round(Number(recipe.family) || 0))),
                 form: clamp(recipe.form), motion: clamp(recipe.motion), depth: clamp(recipe.depth),
                 light: clamp(recipe.light), complexity: Math.max(0.08, clamp(recipe.complexity)), atmosphere: clamp(recipe.atmosphere),
-                rotation: clampSigned(recipe.rotation), response: clamp(recipe.response, 0.62), colorVariance: clamp(recipe.colorVariance, 0.38),
+                rotation: clampSigned(recipe.rotation), response: clamp(recipe.response, 0.62), colorVariance: clamp(recipe.colorVariance, 0.38), chaos: clamp(recipe.chaos, 0.22),
                 symmetry: clamp(recipe.symmetry, 0.6), warp: clamp(recipe.warp, 0.4), density: clamp(recipe.density, 0.65), scale: clamp(recipe.scale, 0.55)
             };
-            ['form','motion','depth','light','complexity','atmosphere','rotation','response','colorVariance'].forEach(key => {
+            ['form','motion','depth','light','complexity','atmosphere','rotation','response','colorVariance','chaos'].forEach(key => {
                 const slider = document.getElementById('lab-' + key);
                 const output = document.getElementById('lab-' + key + '-val');
                 if (slider) slider.value = this.visualRecipe[key];
@@ -2575,7 +2611,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             const geometryTarget = structuralTarget || !respectTargets || this.visualTargets.has('complexity');
             const particleFamily = family < THREE_FAMILY_COUNT ? family : Math.max(0, Math.min(THREE_FAMILY_COUNT - 1, this.visualRecipe.family));
             const next = { seed: geometryTarget ? seed : this.visualRecipe.seed, family:particleFamily, selectedFamily:family };
-            ['form','motion','depth','light','complexity','atmosphere'].forEach(key => {
+            ['form','motion','depth','light','complexity','atmosphere','chaos'].forEach(key => {
                 next[key] = respectTargets && !this.visualTargets.has(key) ? this.visualRecipe[key] : sample(ranges[key]);
             });
             next.rotation = respectTargets && !this.visualTargets.has('rotation')
@@ -2608,7 +2644,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             const preset = PURE_VISUAL_SETS[family]; if (!preset) return;
             const recipe = Object.assign({
                 family, motion:0.18, light:0.62, complexity:0.45, atmosphere:0.28,
-                rotation:(family % 2 ? -1 : 1) * (0.045 + (family % 3) * 0.015), response:0.6, colorVariance:0.35, symmetry:0.68, warp:0.2, density:0.52, scale:0.52
+                rotation:(family % 2 ? -1 : 1) * (0.045 + (family % 3) * 0.015), response:0.6, colorVariance:0.35, chaos:0.18, symmetry:0.68, warp:0.2, density:0.52, scale:0.52
             }, preset);
             const color = recipe.color; delete recipe.color;
             this.labPadCorners = { tl:family, tr:family, bl:family, br:family };
@@ -2735,18 +2771,20 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             const totalClassic = Math.max(0.0001, Number(classicStrength) || Object.values(weights).reduce((sum, value) => sum + (Number(value) || 0), 0));
             const circleShare = Math.max(0, Math.min(1, (Number(weights.circle) || 0) / totalClassic));
             const rippleShare = Math.max(0, Math.min(1, (Number(weights.ripple) || 0) / totalClassic));
-            const key = [r.form,r.motion,r.light,r.complexity,r.atmosphere,r.response,r.colorVariance,circleShare,rippleShare].map(value => Number(value).toFixed(3)).join('|');
+            const key = [r.form,r.motion,r.depth,r.light,r.complexity,r.atmosphere,r.response,r.colorVariance,r.chaos,circleShare,rippleShare].map(value => Number(value).toFixed(3)).join('|');
             if (key === this.lastClassicRecipeKey) return;
             this.lastClassicRecipeKey = key;
-            const baseRandomness = Math.min(0.82, 0.04 + r.form * 0.3 + r.motion * 0.22 + r.atmosphere * 0.12);
-            // Licht should stay close to the calm zero-chaos Classic circle. Welle keeps
-            // a little more organic movement. The weighted shares make XY mixes continuous.
-            const calmScale = Math.max(0.16, 1 - circleShare * 0.82 - rippleShare * 0.68);
-            const randomness = baseRandomness * calmScale;
+            // Family-aware Chaos keeps the original strengths intact: pure Licht is exactly
+            // zero, pure Welle stays between four and eight percent. Other Classic modes can
+            // use the full Lab control, and XY mixes interpolate continuously between them.
+            const otherShare = Math.max(0, 1 - circleShare - rippleShare);
+            const rippleRandomness = 0.04 + Math.max(0, Math.min(1, r.chaos)) * 0.04;
+            const otherRandomness = Math.min(0.72, r.chaos * (0.22 + r.motion * 0.35) + r.form * 0.04);
+            const randomness = rippleShare * rippleRandomness + otherShare * otherRandomness;
             const intensity = Math.min(1, 0.5 + r.light * 0.52 + r.response * 0.12);
             const overdrive = Math.min(0.82, Math.max(0, 0.1 + r.light * 0.48 + r.colorVariance * 0.18));
             const points = Math.max(3, Math.min(12, Math.round(3 + r.complexity * 9)));
-            this.viz.setRandomness(randomness); this.viz.setIntensity(intensity);
+            this.viz.setRandomness(randomness); this.viz.setIntensity(intensity); this.viz.setSpatialDepth(r.depth);
             this.viz.setOverdrive(overdrive); this.viz.setLumaPoints(points);
             const sync = (id, value, output, label) => {
                 const slider = document.getElementById(id), display = document.getElementById(output);
