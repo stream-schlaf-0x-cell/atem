@@ -765,7 +765,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             this.manualYaw = 0; this.manualPitch = 0;
             this.manualVelocityYaw = 0; this.manualVelocityPitch = 0; this.manualDragging = false;
             const hybridMemory = Number(navigator.deviceMemory || 0), hybridCores = Number(navigator.hardwareConcurrency || 4);
-            this.hybridFrameInterval = hybridCores <= 4 && (hybridMemory === 0 || hybridMemory <= 4) ? 33 : (hybridCores >= 8 ? 17 : 25);
+            this.hybridFrameInterval = hybridCores <= 4 && (hybridMemory === 0 || hybridMemory <= 4) ? 34 : (hybridCores >= 8 && hybridMemory >= 4 ? 17 : 25);
             this.pCount = this.config.particleCount;
             this.initArrays();
             this.particleSprite = null; this.particleSpriteColor = ''; this.initParticles = false;
@@ -885,9 +885,11 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
         setLumaPoints(v) { this.lumaPoints = v; }
         setOverdrive(v) { 
             this.overdrive = v; 
-            // Hardwarebeschleunigter Boost: max. +100% Sättigung und +30% Helligkeit (gecapt)
-            this.canvas.style.filter = `saturate(${100 + v * 100}%) brightness(${100 + v * 30}%)`;
+            // CSS luminance is substantially cheaper than adding more blurred canvas passes.
+            // Keep the dark minimum intact, then let Classic reach the same luminous peak as V5.
+            this.canvas.style.filter = `saturate(${104 + v * 110}%) brightness(${104 + v * 160}%) contrast(${100 + v * 12}%)`;
         }
+        luminanceGain() { return this.hybridActive ? 1.35 + this.overdrive * 0.65 : 1; }
         setActive(active, hybrid = false) {
             this.active = Boolean(active); this.hybridActive = Boolean(this.active && hybrid);
             this.dpr = this.hybridActive ? 1 : this.config.dpr;
@@ -902,10 +904,16 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             }
         }
         setHybridMix(weights, strength) {
-            this.weights = weights;
+            const source = Object.assign({ mist:0, circle:0, ripple:0, luma:0, leere:0, aura:0 }, weights || {});
+            const luminanceGain = 1.08 + this.intensity * 0.32;
+            this.weights = {};
+            Object.entries(source).forEach(([mode, weight]) => {
+                const clean = Math.max(0, Math.min(1, Number(weight) || 0));
+                this.weights[mode] = Math.min(1, Math.pow(clean, 0.82) * luminanceGain);
+            });
             this.hybridMixStrength = Math.max(0, Math.min(1, Number(strength) || 0));
-            // The individual mode weights already perform the crossfade. A second CSS fade
-            // made the middle of a Classic/V5 mix unnecessarily dark.
+            // Additive particles remain brighter at small weights than 2D canvas shapes.
+            // The gentle gamma above equalizes perceived crossfade energy without clipping.
             document.body.style.setProperty('--classic-mix-opacity', this.hybridMixStrength > 0.002 ? '1' : '0');
             if (this.hybridActive && this.hybridMixStrength <= 0.002) this.ctx.clearRect(0, 0, this.width, this.height);
         }
@@ -996,7 +1004,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             this.ctx.globalCompositeOperation = 'lighter';
 
             // V4: HD glow only when overdrive is active AND useGlow is supported
-            if (this.config.useGlow && this.overdrive > 0.1) {
+            if (this.config.useGlow && this.overdrive > 0.1 && !(this.hybridActive && this.hybridFrameInterval >= 30)) {
                 this.ctx.shadowBlur = this.overdrive * 20 * this.dpr;
                 this.ctx.shadowColor = `rgba(${this.colors.r}, ${this.colors.g}, ${this.colors.b}, 0.6)`;
             } else {
@@ -1013,7 +1021,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             if (this.weights.aura > 0.01) {
                 this.ctx.save();
                 this.ctx.globalCompositeOperation = 'source-over';
-                this.ctx.globalAlpha = this.weights.aura * 0.35;
+                this.ctx.globalAlpha = this.weights.aura * (this.hybridActive ? 0.58 : 0.35);
                 this.renderAura(pulseBoost);
                 this.ctx.restore();
                 this.ctx.globalCompositeOperation = 'lighter';
@@ -1047,6 +1055,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
         /* V4 MIST: Exact V2 physics and alpha math */
         renderMist(layerOpacity, pulseBoost) {
             if (!this.initParticles) { for (let i = 0; i < this.pCount; i++) this.resetParticle(i); this.initParticles = true; }
+            const luminanceGain = this.luminanceGain();
             const time = this.visualTime * 0.0003;
             const maxR = Math.min(this.width, this.height) * 0.4;
             const targetR = 20 + (maxR * this.breathValue);
@@ -1076,7 +1085,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
                 this.p_y[i] += (this.p_vy[i] *= 0.92);
                 const lifeProg = this.p_life[i] / this.p_maxLife[i];
                 let alphaMult = (0.5 + this.breathValue * 0.5) * (this.phase === 'out' ? 0.8 : 1);
-                const alpha = Math.sin(lifeProg * Math.PI) * this.p_baseAlpha[i] * alphaMult * layerOpacity * (0.5 + this.intensity * 0.5);
+                const alpha = Math.sin(lifeProg * Math.PI) * this.p_baseAlpha[i] * alphaMult * layerOpacity * (0.5 + this.intensity * 0.5) * luminanceGain;
                 const size = this.p_size[i] * (0.8 + this.breathValue * 0.8) * (1 + this.tapPulse * 0.4);
                 /* V4: V2's exact pulseBoost formula for mist particles */
                 this.ctx.globalAlpha = Math.min(1, alpha + pulseBoost);
@@ -1088,11 +1097,12 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
         /* V4 LEERE: V3's new mode, adapted to V2's dark subtle aesthetic */
         renderLeere(layerOpacity, pulseBoost) {
             const cx = this.centerX, cy = this.centerY;
+            const luminanceGain = this.luminanceGain();
             const maxD = Math.min(this.width, this.height);
             const t = this.visualTime * 0.00005;
             const coreRadius = maxD * (0.05 + 0.08 * this.breathValue) * (1 + pulseBoost * 0.05);
             this.ctx.save();
-            this.ctx.globalAlpha = layerOpacity * 0.7; // V4: dimmed to match V2 subtlety
+            this.ctx.globalAlpha = Math.min(1, layerOpacity * 0.7 * luminanceGain); // V4: dimmed to match V2 subtlety
             this.ctx.translate(cx, cy);
             this.ctx.rotate(t);
             const points = this.lumaPoints * 2;
@@ -1114,7 +1124,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
                 }
                 this.ctx.closePath();
                 /* V4: Lower alpha ceiling to keep things dark and fine */
-                const strokeAlpha = Math.min(0.3, Math.sin(layerProg * Math.PI) * (0.3 + 0.5 * this.intensity) * (1 + pulseBoost));
+                const strokeAlpha = Math.min(this.hybridActive ? 0.56 : 0.3, Math.sin(layerProg * Math.PI) * (0.3 + 0.5 * this.intensity) * (1 + pulseBoost) * luminanceGain);
                 const layerColor = this.variantColor(l);
                 this.ctx.strokeStyle = `rgba(${layerColor.r}, ${layerColor.g}, ${layerColor.b}, ${strokeAlpha})`;
                 this.ctx.stroke();
@@ -1134,13 +1144,13 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
                 }
             }
             this.ctx.restore();
-            this.ctx.globalAlpha = layerOpacity * 0.7;
+            this.ctx.globalAlpha = Math.min(1, layerOpacity * 0.7 * luminanceGain);
             this.ctx.beginPath();
             this.ctx.arc(cx, cy, coreRadius, 0, this.PI2);
             this.ctx.fillStyle = '#000000';
             this.ctx.fill();
             this.ctx.lineWidth = 1.62 + pulseBoost * 2.1;
-            this.ctx.strokeStyle = `rgba(${this.accentColor.r}, ${this.accentColor.g}, ${this.accentColor.b}, ${layerOpacity * 0.6})`;
+            this.ctx.strokeStyle = `rgba(${this.accentColor.r}, ${this.accentColor.g}, ${this.accentColor.b}, ${Math.min(1, layerOpacity * 0.6 * luminanceGain)})`;
             this.ctx.stroke();
             this.ctx.globalAlpha = 1;
         }
@@ -1148,17 +1158,18 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
         /* V4 AURA: V3's new mode, toned down to V2 aesthetic */
         renderAura(pulseBoost) {
             const cx = this.centerX, cy = this.centerY;
+            const luminanceGain = this.luminanceGain();
             const maxR = Math.max(this.width, this.height);
             const minR = 5;
             const currentR = Math.max(minR, minR + (maxR * 0.8 * this.breathValue) * (1 + pulseBoost * 0.1));
             /* V4: Reduced alpha base for darker, subtler look */
-            const alphaBase = (this.breathValue * 0.4) * this.intensity;
+            const alphaBase = Math.min(1, (this.breathValue * 0.4) * this.intensity * luminanceGain);
             const innerR = Math.max(0.1, currentR * 0.25);
             const tAura = this.visualTime * 0.0004;
             const coreOffsetX = Math.cos(tAura) * maxR * 0.15 * this.randomness;
             const coreOffsetY = Math.sin(tAura * 0.7) * maxR * 0.15 * this.randomness;
             const g1 = this.ctx.createRadialGradient(cx + coreOffsetX, cy + coreOffsetY, 0, cx + coreOffsetX, cy + coreOffsetY, innerR);
-            g1.addColorStop(0, `rgba(255, 255, 255, ${Math.min(0.03, alphaBase * 0.5)})`);
+            g1.addColorStop(0, `rgba(255, 255, 255, ${Math.min(this.hybridActive ? 0.07 : 0.03, alphaBase * 0.5)})`);
             g1.addColorStop(0.3, `rgba(${this.accentColor.r}, ${this.accentColor.g}, ${this.accentColor.b}, ${alphaBase})`);
             g1.addColorStop(1, `rgba(${this.secondColor.r}, ${this.secondColor.g}, ${this.secondColor.b}, 0)`);
             this.ctx.beginPath();
@@ -1177,6 +1188,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
 
         /* V4 CIRCLE: Exact V2 rendering with breath-weighted alpha */
         renderCircle(pulseBoost) {
+            const luminanceGain = this.luminanceGain();
             const baseScale = Math.min(this.width, this.height) * 0.3;
             const rBase = (baseScale * (0.4 + this.breathValue * 0.6)) * (1 + this.tapPulse * 0.04);
             const time = this.visualTime * (0.0003 + this.randomness * 0.0002);
@@ -1190,18 +1202,19 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             }
             this.ctx.closePath();
             /* V4: V2's exact alpha formula: (0.3 + tapPulse * 0.8 * breathWeighted) * intensity */
-            this.ctx.strokeStyle = `rgba(${this.accentColor.r},${this.accentColor.g},${this.accentColor.b},${(0.3 + this.tapPulse * 0.8 * (0.4 + 0.6 * this.breathValue)) * this.intensity})`;
+            this.ctx.strokeStyle = `rgba(${this.accentColor.r},${this.accentColor.g},${this.accentColor.b},${Math.min(1, (0.3 + this.tapPulse * 0.8 * (0.4 + 0.6 * this.breathValue)) * this.intensity * luminanceGain)})`;
             this.ctx.lineWidth = 1.62 + (this.tapPulse * 1.55);
             this.ctx.stroke();
             const g = this.ctx.createRadialGradient(this.centerX, this.centerY, 0, this.centerX, this.centerY, rBase*1.2);
-            g.addColorStop(0, `rgba(${this.colors.r},${this.colors.g},${this.colors.b},${(0.3 + this.breathValue * 0.2 + this.tapPulse * 0.2 * (0.4 + 0.6 * this.breathValue)) * this.intensity})`);
-            g.addColorStop(0.62, `rgba(${this.secondColor.r},${this.secondColor.g},${this.secondColor.b},${0.08 * this.intensity})`);
+            g.addColorStop(0, `rgba(${this.colors.r},${this.colors.g},${this.colors.b},${Math.min(1, (0.3 + this.breathValue * 0.2 + this.tapPulse * 0.2 * (0.4 + 0.6 * this.breathValue)) * this.intensity * luminanceGain)})`);
+            g.addColorStop(0.62, `rgba(${this.secondColor.r},${this.secondColor.g},${this.secondColor.b},${Math.min(1, 0.08 * this.intensity * luminanceGain)})`);
             g.addColorStop(1, `rgba(${this.secondColor.r},${this.secondColor.g},${this.secondColor.b},0)`);
             this.ctx.fillStyle = g; this.ctx.fill();
         }
 
         /* V4 RIPPLE: V2's quadratic randomness wobble */
         renderRipple(pulseBoost) {
+            const luminanceGain = this.luminanceGain();
             const t = this.visualTime * (0.0002 + this.randomness * 0.0001);
             const count = Math.max(3, Math.floor(8 * this.intensity));
             const maxD = Math.min(this.width, this.height);
@@ -1220,7 +1233,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
                 }
                 this.ctx.closePath();
                 /* V4: V2's alpha formula */
-                const alpha = Math.min(1, ((0.1 + this.breathValue * 0.1) * this.intensity) + this.tapPulse * 0.4 * (0.4 + 0.6 * this.breathValue));
+                const alpha = Math.min(1, (((0.1 + this.breathValue * 0.1) * this.intensity) + this.tapPulse * 0.4 * (0.4 + 0.6 * this.breathValue)) * luminanceGain);
                 const ringColor = this.variantColor(i);
                 this.ctx.strokeStyle = `rgba(${ringColor.r},${ringColor.g},${ringColor.b},${alpha})`;
                 this.ctx.lineWidth = 1.08 + this.tapPulse * 1.55;
@@ -1230,11 +1243,12 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
 
         /* V4 LUMA: Exact V2 mandala rendering */
         renderLuma(pulseBoost) {
+            const luminanceGain = this.luminanceGain();
             const t = this.visualTime * (0.0004 + this.randomness * 0.001);
             const baseR = Math.min(this.width, this.height) * 0.20;
             const innerR = baseR * (0.5 + this.breathValue * 0.8) * (1 + Math.sin(t)*0.05) * (1 + this.tapPulse * 0.08);
             const g1 = this.ctx.createRadialGradient(this.centerX, this.centerY, 0, this.centerX, this.centerY, innerR);
-            const alpha = (0.05 + (this.breathValue * 0.1) + this.tapPulse * 0.15 * (0.4 + 0.6 * this.breathValue)) * this.intensity;
+            const alpha = Math.min(1, (0.05 + (this.breathValue * 0.1) + this.tapPulse * 0.15 * (0.4 + 0.6 * this.breathValue)) * this.intensity * luminanceGain);
             g1.addColorStop(0, `rgba(${this.accentColor.r},${this.accentColor.g},${this.accentColor.b},${alpha})`);
             g1.addColorStop(1, `rgba(${this.secondColor.r},${this.secondColor.g},${this.secondColor.b},0)`);
             this.ctx.beginPath(); this.ctx.arc(this.centerX, this.centerY, innerR, 0, this.PI2);
@@ -1251,7 +1265,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
                     if (a === 0) this.ctx.moveTo(x, y); else this.ctx.lineTo(x, y);
                 }
                 /* V4: V2's luma alpha */
-                const lumaAlpha = Math.min(1, ((0.1 + this.breathValue*0.2) * this.intensity) + this.tapPulse*0.4 * (0.4 + 0.6 * this.breathValue));
+                const lumaAlpha = Math.min(1, (((0.1 + this.breathValue*0.2) * this.intensity) + this.tapPulse*0.4 * (0.4 + 0.6 * this.breathValue)) * luminanceGain);
                 const petalColor = this.variantColor(i);
                 this.ctx.strokeStyle = `rgba(${petalColor.r},${petalColor.g},${petalColor.b},${lumaAlpha})`;
                 this.ctx.lineWidth = 1.62; this.ctx.stroke();
@@ -1272,13 +1286,13 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     }
 
     const VISUAL_FAMILIES = [
-        { id:'bloom', name:'Blüte', mood:'organisch', ranges:{ form:[.28,.82], motion:[.28,.66], depth:[.38,.72], light:[.58,.9], complexity:[.42,.82], atmosphere:[.28,.66] } },
-        { id:'spiral', name:'Spirale', mood:'kosmisch', ranges:{ form:[.24,.78], motion:[.42,.82], depth:[.55,.9], light:[.5,.84], complexity:[.48,.9], atmosphere:[.22,.58] } },
-        { id:'tunnel', name:'Tunnel', mood:'cinematisch', ranges:{ form:[.2,.76], motion:[.34,.76], depth:[.72,.98], light:[.48,.82], complexity:[.42,.86], atmosphere:[.2,.56] } },
+        { id:'bloom', name:'Blüte', mood:'organisch', centerMesh:1, ringProfile:'bloom', ranges:{ form:[.28,.82], motion:[.28,.66], depth:[.38,.72], light:[.58,.9], complexity:[.42,.82], atmosphere:[.28,.66] } },
+        { id:'spiral', name:'Spirale', mood:'kosmisch', ringProfile:'spiral', ranges:{ form:[.24,.78], motion:[.42,.82], depth:[.55,.9], light:[.5,.84], complexity:[.48,.9], atmosphere:[.22,.58] } },
+        { id:'tunnel', name:'Tunnel', mood:'cinematisch', ringProfile:'tunnel', ranges:{ form:[.2,.76], motion:[.34,.76], depth:[.72,.98], light:[.48,.82], complexity:[.42,.86], atmosphere:[.2,.56] } },
         { id:'veil', name:'Schleier', mood:'weich', ranges:{ form:[.18,.72], motion:[.24,.62], depth:[.35,.78], light:[.48,.8], complexity:[.34,.76], atmosphere:[.5,.9] } },
-        { id:'orbit', name:'Orbit', mood:'präzise', ranges:{ form:[.3,.86], motion:[.36,.74], depth:[.5,.86], light:[.58,.9], complexity:[.4,.82], atmosphere:[.18,.52] } },
-        { id:'cathedral', name:'Kathedrale', mood:'monumental', ranges:{ form:[.24,.74], motion:[.18,.52], depth:[.68,.96], light:[.52,.88], complexity:[.46,.86], atmosphere:[.34,.72] } },
-        { id:'mandala', name:'Mandala', mood:'rhythmisch', ranges:{ form:[.26,.88], motion:[.3,.7], depth:[.3,.7], light:[.6,.94], complexity:[.46,.9], atmosphere:[.16,.54] } },
+        { id:'orbit', name:'Orbit', mood:'präzise', ringProfile:'orbit', ranges:{ form:[.3,.86], motion:[.36,.74], depth:[.5,.86], light:[.58,.9], complexity:[.4,.82], atmosphere:[.18,.52] } },
+        { id:'cathedral', name:'Kathedrale', mood:'monumental', ringProfile:'cathedral', ranges:{ form:[.24,.74], motion:[.18,.52], depth:[.68,.96], light:[.52,.88], complexity:[.46,.86], atmosphere:[.34,.72] } },
+        { id:'mandala', name:'Mandala', mood:'rhythmisch', ringProfile:'mandala', ranges:{ form:[.26,.88], motion:[.3,.7], depth:[.3,.7], light:[.6,.94], complexity:[.46,.9], atmosphere:[.16,.54] } },
         { id:'aurora', name:'Aurora', mood:'fluid', ranges:{ form:[.16,.76], motion:[.38,.78], depth:[.44,.82], light:[.56,.9], complexity:[.38,.8], atmosphere:[.52,.94] } },
         { id:'classic-mist', name:'Nebel', mood:'flächig', classicMode:'mist', ranges:{ form:[.28,.7], motion:[.18,.58], depth:[.3,.68], light:[.42,.76], complexity:[.24,.62], atmosphere:[.58,.92] } },
         { id:'classic-circle', name:'Licht', mood:'ruhig', classicMode:'circle', ranges:{ form:[.38,.8], motion:[.12,.48], depth:[.24,.62], light:[.62,.94], complexity:[.2,.58], atmosphere:[.28,.68] } },
@@ -1313,6 +1327,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             this.qualityScale = 0.85;
             this.frameSamples = [];
             this.lastFrame = performance.now();
+            this.lastPresentedFrame = 0;
             this.lastRenderTime = 0;
             this.lastQualityChange = 0;
             this.goodQualityWindows = 0;
@@ -1326,41 +1341,65 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             this.mobile = matchMedia('(max-width: 767px)').matches || appleTouch || /Android/i.test(navigator.userAgent);
             this.iosStandalone = appleTouch && (navigator.standalone === true || matchMedia('(display-mode: standalone)').matches);
             this.reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
-            const memory = Number(navigator.deviceMemory || 0);
-            const cores = Number(navigator.hardwareConcurrency || 4);
-            const lowHardware = cores <= 4 && (memory === 0 || memory <= 4);
-            const highHardware = cores >= 8 && (memory === 0 || memory >= 4);
-            this.hardwareTier = lowHardware ? 'low' : (highHardware ? 'high' : 'balanced');
-            // Per-layer budgets: even a four-corner mix stays below the old single-layer peak.
-            const tier = {
-                low:{ points:3500, min:1200, quality:0.72, maxQuality:0.86, minQuality:0.42, dpr:1 },
-                balanced:{ points:this.mobile ? 4800 : 6200, min:1700, quality:0.78, maxQuality:0.94, minQuality:0.4, dpr:1.18 },
-                high:{ points:this.mobile ? 7200 : 9000, min:2400, quality:0.86, maxQuality:1, minQuality:0.38, dpr:this.mobile ? 1.35 : 1.48 }
-            }[this.hardwareTier];
-            this.maxPoints = this.iosStandalone ? Math.min(tier.points, 6500) : tier.points; this.minPoints = tier.min;
-            this.qualityScale = tier.quality; this.maxQualityScale = tier.maxQuality; this.minQualityScale = tier.minQuality;
-            this.qualityTarget = this.qualityScale; this.lastAppliedQualityScale = this.qualityScale;
-            this.dprCap = this.iosStandalone ? Math.min(tier.dpr, 1.2) : tier.dpr;
-            // Keep the drawing-buffer size stable while adaptive quality changes.
-            // Reallocating it can produce black compositing flashes in browsers and home-screen apps.
-            this.renderPixelRatio = Math.min(window.devicePixelRatio || 1, this.dprCap) * Math.sqrt(this.qualityScale);
+            this.memory = Number(navigator.deviceMemory || 0);
+            this.cores = Number(navigator.hardwareConcurrency || 4);
+            const lowHardware = this.cores <= 4 && (this.memory === 0 || this.memory <= 4);
+            // Firefox omits deviceMemory. Desktop machines are no longer promoted to the
+            // highest tier from logical CPU count alone; the WebGL GPU check below decides.
+            const highHardware = this.cores >= 8 && (this.memory >= 4 || this.mobile);
+            this.configureHardwareTier(lowHardware ? 'low' : (highHardware ? 'high' : 'balanced'));
             this.lastPixelWidth = 0; this.lastPixelHeight = 0;
             this.layerFamilies = [0, 2, 3, 7]; this.layerWeights = [1, 0, 0, 0]; this.layerBudgetWeights = [1,0,0,0];
             this.mixStrength = 1; this.lastBudgetKey = '';
             this.particleLayers = []; this.currentPointCount = 0; this.coreBlend = 1; this.ringBlend = 1;
+            this.ringProfiles = { bloom:1, spiral:0, tunnel:0, orbit:0, cathedral:0, mandala:0 };
+            this.gpuRenderer = '';
             if (!window.THREE) return;
             try { this.init(); } catch (error) { console.warn('Visual Lab unavailable; Classic Canvas remains active.', error); this.dispose(); }
+        }
+        configureHardwareTier(name) {
+            const tier = {
+                low:{ points:3800, min:1400, quality:0.78, maxQuality:0.88, minQuality:0.58, dpr:1, frame:33.34, classicFrame:34 },
+                balanced:{ points:this.mobile ? 4800 : 6200, min:1700, quality:0.82, maxQuality:0.94, minQuality:0.52, dpr:1.16, frame:22.23, classicFrame:25 },
+                high:{ points:this.mobile ? 7200 : 9000, min:2400, quality:0.86, maxQuality:1, minQuality:0.42, dpr:this.mobile ? 1.35 : 1.48, frame:0, classicFrame:17 }
+            }[name];
+            this.hardwareTier = name;
+            this.maxPoints = this.iosStandalone ? Math.min(tier.points, 6500) : tier.points;
+            this.minPoints = tier.min;
+            this.qualityScale = tier.quality; this.maxQualityScale = tier.maxQuality; this.minQualityScale = tier.minQuality;
+            this.qualityTarget = this.qualityScale; this.lastAppliedQualityScale = this.qualityScale;
+            this.dprCap = this.iosStandalone ? Math.min(tier.dpr, 1.2) : tier.dpr;
+            this.targetFrameInterval = tier.frame;
+            this.recommendedClassicFrameInterval = tier.classicFrame;
+            // Keep the drawing-buffer size stable while adaptive quality changes.
+            this.renderPixelRatio = Math.min(window.devicePixelRatio || 1, this.dprCap) * Math.sqrt(this.qualityScale);
+        }
+        calibrateGpuTier() {
+            try {
+                const gl = this.renderer.getContext();
+                const debug = gl.getExtension('WEBGL_debug_renderer_info');
+                this.gpuRenderer = String(debug ? gl.getParameter(debug.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER) || '');
+                const legacyDesktopGpu = !this.mobile && /(Intel.*(?:HD|Iris)|NVIDIA.*GeForce GT\s*\d{3}M|AMD.*Radeon R9 M)/i.test(this.gpuRenderer);
+                const appleSiliconGpu = !this.mobile && /Apple\s*(?:M\d|GPU)/i.test(this.gpuRenderer) && this.cores >= 8;
+                if (legacyDesktopGpu) this.configureHardwareTier('low');
+                else if (appleSiliconGpu) this.configureHardwareTier('high');
+                document.body.dataset.visualTier = this.hardwareTier;
+            } catch (error) {
+                document.body.dataset.visualTier = this.hardwareTier;
+            }
         }
         init() {
             const T = window.THREE;
             this.renderer = new T.WebGLRenderer({
-                canvas: this.canvas, antialias: false, alpha: false, stencil: false,
+                canvas: this.canvas, antialias: false, alpha: false, depth: false, stencil: false,
                 powerPreference: this.iosStandalone ? 'default' : 'high-performance',
                 // The app intentionally skips rendering while hidden or inactive. Retaining the
                 // last complete frame prevents the compositor from briefly presenting an empty
                 // canvas during those gaps, tab transitions or UI layer changes.
                 preserveDrawingBuffer: true
             });
+            this.renderer.sortObjects = false;
+            this.calibrateGpuTier();
             this.renderer.setClearColor(0x08080b, 1);
             this.renderer.outputColorSpace = T.SRGBColorSpace;
             this.scene = new T.Scene();
@@ -1520,7 +1559,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
                     uFamily: { value: this.layerFamilies[layerIndex] },
                     uLayerWeight: { value: this.layerWeights[layerIndex] }
                 });
-                const material = new T.ShaderMaterial({ uniforms: layerUniforms, vertexShader, fragmentShader, transparent: true, depthWrite: false, blending: T.AdditiveBlending });
+                const material = new T.ShaderMaterial({ uniforms: layerUniforms, vertexShader, fragmentShader, transparent: true, depthTest: false, depthWrite: false, blending: T.AdditiveBlending });
                 const points = new T.Points(geometry, material);
                 points.frustumCulled = false; points.visible = layerIndex === 0;
                 this.root.add(points);
@@ -1551,24 +1590,34 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
                 vertexShader, fragmentShader,
                 extensions: { derivatives: smoothEdges },
                 transparent: true, wireframe: !smoothEdges, side: smoothEdges ? T.DoubleSide : T.FrontSide,
-                depthWrite: false, blending: T.AdditiveBlending
+                depthTest: false, depthWrite: false, blending: T.AdditiveBlending
             });
             this.core = new T.Mesh(geometry, material);
             this.root.add(this.core);
-            this.coreGlowMaterial = new T.MeshBasicMaterial({ color: 0xa65959, transparent: true, opacity: 0.055, depthWrite: false, blending: T.AdditiveBlending });
+            this.coreGlowMaterial = new T.MeshBasicMaterial({ color: 0xa65959, transparent: true, opacity: 0.055, depthTest: false, depthWrite: false, blending: T.AdditiveBlending });
             this.coreGlow = new T.Mesh(new T.SphereGeometry(1.22, this.mobile ? 18 : 28, this.mobile ? 12 : 18), this.coreGlowMaterial);
             this.root.add(this.coreGlow);
         }
         buildRings() {
             const T = window.THREE;
             this.rings = new T.Group();
-            const material = new T.MeshBasicMaterial({ color: 0xa65959, transparent: true, opacity: 0.11, wireframe: false, depthWrite: false, blending: T.AdditiveBlending });
+            const material = new T.MeshBasicMaterial({ color: 0xa65959, transparent: true, opacity: 0.11, wireframe: false, depthTest: false, depthWrite: false, blending: T.AdditiveBlending });
             const ringCount = this.hardwareTier === 'low' ? 5 : (this.hardwareTier === 'balanced' ? 7 : 9);
+            const geometry = new T.TorusGeometry(1, 0.009, 4, this.mobile ? 56 : 84);
+            const mesh = new T.InstancedMesh(geometry, material, ringCount);
+            const transform = new T.Object3D();
             for (let i = 0; i < ringCount; i++) {
-                const ring = new T.Mesh(new T.TorusGeometry(1.55 + i * 0.34, 0.014 + i * 0.0019, 4, this.mobile ? 56 : 84), material);
-                ring.rotation.set(i * 0.31, i * 0.22, i * 0.13);
-                this.rings.add(ring);
+                const radius = 1.55 + i * 0.34;
+                transform.position.set(0, 0, 0);
+                transform.rotation.set(i * 0.31, i * 0.22, i * 0.13);
+                transform.scale.setScalar(radius);
+                transform.updateMatrix();
+                mesh.setMatrixAt(i, transform.matrix);
             }
+            mesh.instanceMatrix.needsUpdate = true;
+            mesh.frustumCulled = false;
+            this.rings.add(mesh);
+            this.ringMesh = mesh;
             this.ringMaterial = material;
             this.root.add(this.rings);
         }
@@ -1617,18 +1666,24 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             this.layerWeights = this.layerBudgetWeights.slice();
             this.mixStrength = Math.min(1, this.layerBudgetWeights.reduce((sum,weight) => sum + weight, 0));
             document.body.style.setProperty('--particle-mix-opacity', this.mixStrength > 0.002 ? '1' : '0');
-            const coreFamilies = new Set([0,1,4,5,6]);
-            const ringFamilies = new Set([0,2,4,5,6]);
             this.coreBlend = 0; this.ringBlend = 0;
+            this.ringProfiles = { bloom:0, spiral:0, tunnel:0, orbit:0, cathedral:0, mandala:0 };
             this.particleLayers.forEach((layer, index) => {
                 const family = Number(this.layerFamilies[index] || 0);
                 const weight = this.layerWeights[index], budgetWeight = this.layerBudgetWeights[index];
                 layer.uniforms.uFamily.value = family; layer.uniforms.uLayerWeight.value = weight;
                 layer.points.visible = budgetWeight > 0.002;
-                if (coreFamilies.has(family)) this.coreBlend += budgetWeight;
-                if (ringFamilies.has(family)) this.ringBlend += budgetWeight;
+                const familyConfig = VISUAL_FAMILIES[family];
+                if (familyConfig && familyConfig.centerMesh) this.coreBlend += budgetWeight * familyConfig.centerMesh;
+                if (familyConfig && familyConfig.ringProfile) {
+                    this.ringBlend += budgetWeight;
+                    this.ringProfiles[familyConfig.ringProfile] += budgetWeight;
+                }
             });
-            this.coreBlend = Math.min(1, this.coreBlend); this.ringBlend = Math.min(1, this.ringBlend);
+            // The triangular mesh belongs to Blüte only and fades faster away from that
+            // corner. It no longer leaks into Orbit, Kathedrale, Mandala or Spirale mixes.
+            this.coreBlend = Math.pow(Math.min(1, this.coreBlend), 1.45);
+            this.ringBlend = Math.min(1, this.ringBlend);
             this.uniforms.uCoreWeight.value = this.coreBlend;
             const budgetKey = this.layerFamilies.join(',') + '|' + this.layerBudgetWeights.map(weight => Math.round(weight*24)).join(',');
             if (budgetKey !== this.lastBudgetKey) { this.lastBudgetKey = budgetKey; this.updateDrawRange(); }
@@ -1650,7 +1705,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
         }
         setActive(active) {
             this.active = Boolean(active && this.available);
-            if (this.active) { this.lastFrame = performance.now(); this.lastRenderTime = 0; this.resize(); }
+            if (this.active) { this.lastFrame = performance.now(); this.lastPresentedFrame = 0; this.lastRenderTime = 0; this.resize(); }
             return this.active;
         }
         setBreathState(value, phase) { this.breath = value; this.phase = phase; }
@@ -1716,10 +1771,11 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             const sorted = samples.slice().sort((a,b)=>a-b);
             const p90 = sorted[Math.min(sorted.length-1, Math.floor(sorted.length*0.9))] || avg;
             if (now - this.lastQualityChange < 1000) return;
+            const expected = Math.max(16.67, this.targetFrameInterval || 0);
             let next = this.qualityTarget;
-            if (p90 > 32 || avg > 26) { next = Math.max(this.minQualityScale, next - 0.2); this.goodQualityWindows = 0; }
-            else if (p90 > 22 || avg > 18.5) { next = Math.max(this.minQualityScale, next - 0.11); this.goodQualityWindows = 0; }
-            else if (p90 < 18 && avg < 17.2) {
+            if (p90 > expected * 1.65 || avg > expected * 1.45) { next = Math.max(this.minQualityScale, next - 0.14); this.goodQualityWindows = 0; }
+            else if (p90 > expected * 1.3 || avg > expected * 1.16) { next = Math.max(this.minQualityScale, next - 0.07); this.goodQualityWindows = 0; }
+            else if (p90 < expected * 1.12 && avg < expected * 1.08) {
                 this.goodQualityWindows++;
                 if (this.goodQualityWindows >= 5) { next = Math.min(this.maxQualityScale, next + 0.035); this.goodQualityWindows = 0; }
             } else this.goodQualityWindows = 0;
@@ -1741,8 +1797,10 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
         }
         animate() {
             this.raf = requestAnimationFrame(() => this.animate());
-            if (!this.active || !this.available || document.hidden || this.mixStrength <= 0.002) { this.lastFrame = performance.now(); return; }
+            if (!this.active || !this.available || document.hidden || this.mixStrength <= 0.002) { this.lastFrame = performance.now(); this.lastPresentedFrame = 0; return; }
             const now = performance.now();
+            if (this.targetFrameInterval && this.lastPresentedFrame && now - this.lastPresentedFrame < this.targetFrameInterval * 0.9) return;
+            this.lastPresentedFrame = now;
             this.lastRenderTime = now;
             const rawDt = now - this.lastFrame;
             // Never advance visible motion by several frames at once after a short browser
@@ -1781,8 +1839,17 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             const lightHot = this.recipe.light * this.recipe.light * this.recipe.light;
             this.coreGlowMaterial.opacity = (0.024 + this.recipe.light * 0.065 + lightHot * 0.14 + this.pulse*0.012*this.recipe.response) * this.coreBlend;
             this.rings.rotation.z -= flowDt * 0.000035 * (0.2 + this.recipe.motion * 2.0);
-            this.rings.rotation.x = Math.sin(this.flowTime*0.09) * this.recipe.depth * 0.25;
-            this.rings.scale.setScalar(0.98 + (u.uBreath.value-0.5)*0.16*this.recipe.response + this.recipe.scale * 0.08);
+            const orbitAccent = Math.min(1, this.ringProfiles.orbit || 0);
+            const cathedralAccent = Math.min(1, this.ringProfiles.cathedral || 0);
+            const mandalaAccent = Math.min(1, this.ringProfiles.mandala || 0);
+            this.rings.rotation.x = Math.sin(this.flowTime*0.09) * this.recipe.depth * 0.25 + cathedralAccent * 0.52 - mandalaAccent * 0.12;
+            this.rings.rotation.y = cathedralAccent * 0.34 + Math.sin(this.flowTime*0.07) * orbitAccent * 0.2;
+            const ringScale = 0.98 + (u.uBreath.value-0.5)*0.16*this.recipe.response + this.recipe.scale * 0.08;
+            this.rings.scale.set(
+                ringScale * (1 - cathedralAccent * 0.26 + mandalaAccent * 0.08),
+                ringScale * (1 + cathedralAccent * 0.44),
+                ringScale * (1 - cathedralAccent * 0.12 - mandalaAccent * 0.58)
+            );
             this.ringMaterial.opacity = (0.05 + this.recipe.atmosphere * 0.1 + this.recipe.light * 0.04 + lightHot * 0.1 + this.pulse*0.014*this.recipe.response) * this.ringBlend;
             const tunnelBlend = this.layerFamilies.reduce((sum, family, index) => sum + (family === 2 ? this.layerBudgetWeights[index] : 0), 0);
             const tunnelTravel = ((this.flowTime*(0.08+this.recipe.motion*0.22))%1.8) * Math.min(1, tunnelBlend);
@@ -1793,11 +1860,11 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             this.renderer.render(this.scene, this.camera);
             // Ignore long browser/UI stalls: they are not GPU load and must not
             // permanently lower visual quality after a tab switch or open menu.
-            if (rawDt < 80) this.adaptQuality(rawDt, now);
+            if (rawDt < Math.max(80, Math.max(16.67, this.targetFrameInterval || 0) * 2.5)) this.adaptQuality(rawDt, now);
         }
         getStats() {
             if (!this.available) return { points: 0, calls: 0, scale: 0 };
-            return { points: this.currentPointCount, calls: this.renderer.info.render.calls, scale: this.qualityScale };
+            return { points: this.currentPointCount, calls: this.renderer.info.render.calls, scale: this.qualityScale, tier:this.hardwareTier, targetFps:this.targetFrameInterval ? Math.round(1000/this.targetFrameInterval) : 60, gpu:this.gpuRenderer };
         }
         dispose() {
             try { if (this.raf) cancelAnimationFrame(this.raf); if (this.resizeObserver) this.resizeObserver.disconnect(); if (this.renderer) this.renderer.dispose(); } catch (error) {}
@@ -2021,6 +2088,9 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             this.qualityTier = visualConfig[storedQuality] ? storedQuality : 'performance';
             this.viz = new BreathVisuals(document.getElementById('viz-canvas'), visualConfig[this.qualityTier]);
             this.infiniteViz = new InfiniteVisuals(document.getElementById('three-canvas'));
+            if (this.infiniteViz && this.infiniteViz.recommendedClassicFrameInterval) {
+                this.viz.hybridFrameInterval = this.infiniteViz.recommendedClassicFrameInterval;
+            }
             this.visualEngine = 'canvas';
             this.visualTargets = new Set(['family','form','motion','depth','light','complexity','atmosphere','rotation','response','colorVariance','color']);
             this.visualHistoryStack = [];
@@ -2665,8 +2735,8 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             if (key === this.lastClassicRecipeKey) return;
             this.lastClassicRecipeKey = key;
             const randomness = Math.min(0.82, 0.04 + r.form * 0.3 + r.motion * 0.22 + r.atmosphere * 0.12);
-            const intensity = Math.min(1, 0.32 + r.light * 0.5 + r.response * 0.18);
-            const overdrive = Math.min(0.72, Math.max(0, (r.light - 0.5) * 0.9 + r.colorVariance * 0.12));
+            const intensity = Math.min(1, 0.5 + r.light * 0.52 + r.response * 0.12);
+            const overdrive = Math.min(0.82, Math.max(0, 0.1 + r.light * 0.48 + r.colorVariance * 0.18));
             const points = Math.max(3, Math.min(12, Math.round(3 + r.complexity * 9)));
             this.viz.setRandomness(randomness); this.viz.setIntensity(intensity);
             this.viz.setOverdrive(overdrive); this.viz.setLumaPoints(points);
