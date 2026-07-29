@@ -767,6 +767,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             this.active = true; this.hybridActive = false; this.hybridMixStrength = 0; this.lastHybridFrame = 0;
             this.manualYaw = 0; this.manualPitch = 0;
             this.manualVelocityYaw = 0; this.manualVelocityPitch = 0; this.manualDragging = false;
+            this.autoRotation = 0;
             const hybridMemory = Number(navigator.deviceMemory || 0), hybridCores = Number(navigator.hardwareConcurrency || 4);
             this.hybridFrameInterval = hybridCores <= 4 && (hybridMemory === 0 || hybridMemory <= 4) ? 34 : (hybridCores >= 8 && hybridMemory >= 4 ? 17 : 25);
             this.pCount = this.config.particleCount;
@@ -887,6 +888,11 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
         triggerPulse(intensity = 1.0) { this.tapPulse = Math.max(this.tapPulse, intensity); }
         setRandomness(v) { this.randomness = Math.max(0, Math.min(1, Number(v) || 0)); }
         setSpatialDepth(v) { this.spatialDepth = Math.max(0, Math.min(1, Number(v) || 0)); }
+        setAutoRotation(v) {
+            const value = Math.max(-1, Math.min(1, Number(v) || 0));
+            this.autoRotation = Math.abs(value) < 0.025 ? 0 : value;
+            if (!this.autoRotation) this.manualVelocityYaw = 0;
+        }
         setIntensity(v) { this.intensity = v; }
         setLumaPoints(v) { this.lumaPoints = v; }
         setOverdrive(v) { 
@@ -934,13 +940,20 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             this.manualVelocityYaw = dx * sensitivity * frameScale * 0.34;
             this.manualVelocityPitch = dy * sensitivity * 0.72 * frameScale * 0.28;
         }
-        endManualRotation() { this.manualDragging = false; }
+        endManualRotation() {
+            this.manualDragging = false;
+            // Horizontal momentum is represented by the persistent Rotation control.
+            // Keeping a second inertial spin here would make a drag accelerate twice.
+            this.manualVelocityYaw = 0;
+        }
         resetManualRotation() {
             this.manualYaw = 0; this.manualPitch = 0; this.manualVelocityYaw = 0; this.manualVelocityPitch = 0;
         }
         stepManualRotation(dt) {
             if (this.manualDragging) return;
             const frame = Math.max(0.25, Math.min(3, dt / 16.67));
+            const signedRotation = Math.sign(this.autoRotation) * Math.pow(Math.abs(this.autoRotation), 1.4);
+            this.manualYaw += dt * 0.00012 * signedRotation;
             this.manualYaw += this.manualVelocityYaw * frame;
             this.manualPitch = Math.max(-1.05, Math.min(1.05, this.manualPitch + this.manualVelocityPitch * frame));
             const damping = Math.pow(0.84, frame);
@@ -1384,6 +1397,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             this.layerFamilies = [0, 2, 3, 7]; this.layerWeights = [1, 0, 0, 0]; this.layerBudgetWeights = [1,0,0,0];
             this.mixStrength = 1; this.lastBudgetKey = '';
             this.particleLayers = []; this.currentPointCount = 0; this.coreBlend = 1; this.ringBlend = 1;
+            this.nebulaLayers = []; this.nebulaTexture = null;
             this.ringProfiles = { bloom:1, spiral:0, tunnel:0, orbit:0, cathedral:0, mandala:0 };
             this.gpuRenderer = '';
             if (!window.THREE) return;
@@ -1450,6 +1464,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
                 uAccent: { value: new T.Color(0x82b1ff) }, uSecond: { value: new T.Color(0xe6c65a) }
             };
             this.buildParticles();
+            this.buildNebula();
             this.buildCore();
             this.buildRings();
             this.reseed(this.recipe.seed);
@@ -1494,7 +1509,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
                     } else if(family<3.5){
                         p=vec3(base.x*4.8,base.y*2.6,base.z*3.6*space);
                         p.y+=sin(p.x*(0.8+uSymmetry*1.8)+uFlowTime*speed)*cos(p.z*(0.45+uForm)+uFlowTime*speed*0.55)*(0.28+uWarp*1.25)*breathe;
-                        p.x+=sin(p.z*0.8+uFlowTime*speed*0.4)*uAtmosphere*0.5;
+                        p.x+=sin(p.z*0.8+uFlowTime*speed*0.4)*uMotion*0.5;
                     } else if(family<4.5){
                         float oa=angle+uFlowTime*speed*0.16;
                         float ob=angle*(2.0+floor(uSymmetry*3.0))+z*PI;
@@ -1519,7 +1534,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
                         float az=(ribbon-(2.0+uSymmetry*3.0))*0.5+z*1.4;
                         float ay=base.y*2.6+sin(ax*(0.65+uForm*0.8)+uFlowTime*speed+ribbon)*(.4+uWarp*1.1);
                         p=vec3(ax,ay,az*space);
-                        p.x+=sin(ay*0.8+uFlowTime*speed*0.28)*uAtmosphere*0.35;
+                        p.x+=sin(ay*0.8+uFlowTime*speed*0.28)*uMotion*0.35;
                     }
                     return p;
                 }
@@ -1534,20 +1549,23 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
                     float breathEase=uBreath*uBreath*(3.0-2.0*uBreath);
                     float breathDepth=uResponse*(0.55+uResponse*0.45);
                     float breathe=mix(1.0,mix(0.72,1.36,breathEase),breathDepth);
-                    float speed=(0.12+uMotion*0.82)*energy;
+                    float kinetic=uMotion*uMotion;
+                    float speed=(0.025+kinetic*0.96)*energy;
                     float arms=floor(3.0+uSymmetry*9.0);
                     float dustSeed=fract(rnd*17.31+aData.y*9.17+uFamily*0.131);
-                    float dustGate=smoothstep(0.985-uAtmosphere*0.18,1.0,dustSeed);
-                    float dustIntensity=dustGate*(0.25+fract(rnd*47.17)*0.75);
+                    float dustGate=smoothstep(0.992-uAtmosphere*0.14,1.0,dustSeed);
+                    float dustIntensity=dustGate*(0.25+fract(rnd*47.17)*0.75)*smoothstep(0.02,0.16,uAtmosphere);
                     vec3 p=visualShape(uFamily,position,angle,radius,z,energy,space,breathSignal,breathe,speed,arms);
                     float chaosWave=sin(angle*(4.0+arms*0.35)+z*5.3+uFlowTime*speed*0.37+rnd*9.0)*cos(radius*11.0-z*3.0-uFlowTime*0.09);
                     p+=normalize(vec3(p.y+0.17,p.z-0.11,p.x+0.09))*chaosWave*uChaos*(0.025+uChaos*0.18)*(0.35+uMotion*0.65);
+                    float kineticWave=sin(uFlowTime*(0.16+kinetic*0.5)+rnd*19.0+angle*1.3+z*2.0);
+                    vec3 kineticDirection=normalize(vec3(aData.z-0.5,aData.x-0.5,aData.y-0.5)+0.001);
+                    p+=kineticDirection*kineticWave*kinetic*(0.018+uChaos*0.055+uWarp*0.03)*energy;
                     p*=1.0+dustIntensity*uAtmosphere*(0.04+rnd*0.14);
                     p.xy*=0.72+uScale*0.62;
                     p.z*=0.68+uDepth*0.58;
-                    p.xz*=rot(uFlowTime*(0.008+uMotion*0.055)+(uBreath-0.5)*0.12*uWarp*uResponse);
-                    p.xy*=rot(sin(uFlowTime*0.09)*uMotion*0.12);
-                    p+=normalize(p+0.001)*sin(uFlowTime*speed+rnd*31.0)*uAtmosphere*(0.018+uWarp*0.065+dustIntensity*0.12)*energy;
+                    p.xz*=rot((uBreath-0.5)*0.12*uWarp*uResponse);
+                    p+=normalize(p+0.001)*sin(uFlowTime*speed+rnd*31.0)*(uMotion*(0.012+uWarp*0.045)+dustIntensity*uAtmosphere*0.055)*energy;
                     vec4 mv=modelViewMatrix*vec4(p,1.0);
                     gl_Position=projectionMatrix*mv;
                     float perspective=clamp(250.0/max(2.0,-mv.z),0.55,5.5);
@@ -1578,7 +1596,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
                     vec3 color=vParticleColor;
                     float lightHot=uLight*uLight*uLight;
                     color*=0.52+halo*uLight*0.14+core*(0.86+uLight*0.72+lightHot*1.65+uPulse*0.42*uResponse+vSpark);
-                    float alpha=halo*vAlpha*(0.62+uAtmosphere*0.38)+core*(vSpark*(0.22+vDust*0.24)+lightHot*0.055);
+                    float alpha=halo*vAlpha*(0.76+uAtmosphere*0.24)+core*(vSpark*(0.22+vDust*0.24)+lightHot*0.055);
                     gl_FragColor=vec4(color,alpha);
                 }`;
             const sharedPosition = new T.BufferAttribute(new Float32Array(this.maxPoints * 3), 3);
@@ -1601,6 +1619,57 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             }
             this.particles = this.particleLayers[0].points;
         }
+        buildNebula() {
+            const T = window.THREE;
+            const size = this.hardwareTier === 'low' ? 96 : (this.hardwareTier === 'balanced' ? 128 : 160);
+            const canvas = document.createElement('canvas');
+            canvas.width = canvas.height = size;
+            const context = canvas.getContext('2d');
+            const image = context.createImageData(size, size);
+            const data = image.data;
+            for (let y = 0; y < size; y++) {
+                for (let x = 0; x < size; x++) {
+                    const nx = x / (size - 1) * 2 - 1;
+                    const ny = y / (size - 1) * 2 - 1;
+                    const radius = Math.sqrt(nx * nx + ny * ny);
+                    const angle = Math.atan2(ny, nx);
+                    const edge = Math.max(0, Math.min(1, (1.03 - radius) / 0.42));
+                    const broad = 0.5 + 0.5 * Math.sin(nx * 5.4 + Math.sin(ny * 3.1) * 1.8);
+                    const filament = 0.5 + 0.5 * Math.sin(angle * 3.0 + radius * 12.0 + Math.sin(nx * 4.7) * 1.25);
+                    const grain = 0.5 + 0.5 * Math.sin(nx * 19.1 + ny * 13.7) * Math.sin(ny * 17.3 - nx * 8.9);
+                    const cloud = Math.max(0, broad * 0.48 + filament * 0.38 + grain * 0.14 - 0.43);
+                    const alpha = Math.pow(cloud, 1.55) * edge * edge;
+                    const index = (y * size + x) * 4;
+                    data[index] = 255; data[index + 1] = 255; data[index + 2] = 255;
+                    data[index + 3] = Math.round(Math.min(1, alpha) * 255);
+                }
+            }
+            context.putImageData(image, 0, 0);
+            this.nebulaTexture = new T.CanvasTexture(canvas);
+            this.nebulaTexture.minFilter = T.LinearFilter;
+            this.nebulaTexture.magFilter = T.LinearFilter;
+            this.nebulaTexture.generateMipmaps = false;
+            const layerCount = this.hardwareTier === 'low' ? 1 : 2;
+            for (let i = 0; i < layerCount; i++) {
+                const material = new T.SpriteMaterial({
+                    map: this.nebulaTexture,
+                    color: i ? 0xe6c65a : 0x82b1ff,
+                    transparent: true,
+                    opacity: 0,
+                    depthTest: false,
+                    depthWrite: false,
+                    blending: T.AdditiveBlending
+                });
+                const sprite = new T.Sprite(material);
+                const baseScale = i ? 6.7 : 8.4;
+                const baseZ = i ? 0.55 : -1.15;
+                sprite.position.set(i ? 0.3 : -0.25, i ? -0.16 : 0.2, baseZ);
+                sprite.scale.set(baseScale, baseScale * (i ? 0.76 : 0.88), 1);
+                sprite.visible = false;
+                this.root.add(sprite);
+                this.nebulaLayers.push({ sprite, material, baseScale, baseZ, phase:i * 2.17 + 0.4 });
+            }
+        }
         buildCore() {
             const T = window.THREE;
             const uniforms = this.uniforms;
@@ -1614,8 +1683,8 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
                 geometry.setAttribute('aBarycentric', new T.BufferAttribute(barycentric, 3));
             }
             const vertexShader = smoothEdges
-                ? `attribute vec3 aBarycentric;uniform float uFlowTime,uBreath,uMotion,uAtmosphere,uWarp,uForm,uResponse,uChaos;varying mediump float vWave;varying mediump vec3 vBarycentric;varying mediump vec3 vNormal;varying mediump vec3 vViewDirection;void main(){vec3 p=position;float w=sin(p.x*(4.0+uForm*5.0)+uFlowTime*(0.25+uMotion))+cos(p.y*(5.0+uWarp*4.0)-uFlowTime*0.22);p+=normal*w*(0.025+uAtmosphere*0.11+uChaos*uChaos*0.075);p*=1.0+(uBreath-0.5)*0.65*uResponse;vec4 viewPosition=modelViewMatrix*vec4(p,1.0);vWave=w;vBarycentric=aBarycentric;vNormal=normalize(normalMatrix*normal);vViewDirection=normalize(-viewPosition.xyz);gl_Position=projectionMatrix*viewPosition;}`
-                : `uniform float uFlowTime,uBreath,uMotion,uAtmosphere,uWarp,uForm,uResponse,uChaos;varying mediump float vWave;void main(){vec3 p=position;float w=sin(p.x*(4.0+uForm*5.0)+uFlowTime*(0.25+uMotion))+cos(p.y*(5.0+uWarp*4.0)-uFlowTime*0.22);p+=normal*w*(0.025+uAtmosphere*0.11+uChaos*uChaos*0.075);p*=1.0+(uBreath-0.5)*0.65*uResponse;vWave=w;gl_Position=projectionMatrix*modelViewMatrix*vec4(p,1.0);}`;
+                ? `attribute vec3 aBarycentric;uniform float uFlowTime,uBreath,uMotion,uAtmosphere,uWarp,uForm,uResponse,uChaos;varying mediump float vWave;varying mediump vec3 vBarycentric;varying mediump vec3 vNormal;varying mediump vec3 vViewDirection;void main(){vec3 p=position;float kinetic=uMotion*uMotion;float w=sin(p.x*(4.0+uForm*5.0)+uFlowTime*(0.06+kinetic*1.08))+cos(p.y*(5.0+uWarp*4.0)-uFlowTime*(0.05+kinetic*0.72));p+=normal*w*(0.022+kinetic*0.055+uChaos*uChaos*0.075);p*=1.0+(uBreath-0.5)*0.65*uResponse;vec4 viewPosition=modelViewMatrix*vec4(p,1.0);vWave=w;vBarycentric=aBarycentric;vNormal=normalize(normalMatrix*normal);vViewDirection=normalize(-viewPosition.xyz);gl_Position=projectionMatrix*viewPosition;}`
+                : `uniform float uFlowTime,uBreath,uMotion,uAtmosphere,uWarp,uForm,uResponse,uChaos;varying mediump float vWave;void main(){vec3 p=position;float kinetic=uMotion*uMotion;float w=sin(p.x*(4.0+uForm*5.0)+uFlowTime*(0.06+kinetic*1.08))+cos(p.y*(5.0+uWarp*4.0)-uFlowTime*(0.05+kinetic*0.72));p+=normal*w*(0.022+kinetic*0.055+uChaos*uChaos*0.075);p*=1.0+(uBreath-0.5)*0.65*uResponse;vWave=w;gl_Position=projectionMatrix*modelViewMatrix*vec4(p,1.0);}`;
             const fragmentShader = smoothEdges
                 ? `precision highp float;uniform vec3 uColor,uAccent,uSecond;uniform float uFlowTime,uLight,uPulse,uResponse,uColorVariance,uCoreWeight;varying mediump float vWave;varying mediump vec3 vBarycentric;varying mediump vec3 vNormal;varying mediump vec3 vViewDirection;void main(){vec3 width=fwidth(vBarycentric);vec3 inset=smoothstep(width*0.5,width*1.65,vBarycentric);float edge=1.0-min(min(inset.x,inset.y),inset.z);if(edge<0.015)discard;float variance=pow(clamp(uColorVariance,0.0,1.0),0.62);float fresnel=pow(1.0-max(0.0,dot(normalize(vNormal),normalize(vViewDirection))),1.65);float iris=0.5+0.5*sin(vWave*1.35+vNormal.y*4.8+vNormal.x*2.7+uFlowTime*0.11);vec3 chroma=mix(uSecond,uAccent,iris);vec3 c=mix(uColor,chroma,variance*(0.2+fresnel*0.66));float hot=uLight*uLight*uLight;c*=0.96+uLight*0.42+hot*1.05+fresnel*0.26;float alpha=edge*(0.14+uLight*0.2+hot*0.3+fresnel*0.2+uPulse*0.05*uResponse)*uCoreWeight;gl_FragColor=vec4(c,alpha);}`
                 : `precision highp float;uniform vec3 uColor,uAccent,uSecond;uniform float uLight,uPulse,uResponse,uColorVariance,uCoreWeight;varying mediump float vWave;void main(){float variance=pow(clamp(uColorVariance,0.0,1.0),0.62);float hot=uLight*uLight*uLight;float iris=0.5+0.5*sin(vWave*1.5);vec3 c=mix(uColor,mix(uSecond,uAccent,iris),variance*0.58);c*=0.94+uLight*0.38+hot;gl_FragColor=vec4(c,(0.12+uLight*0.2+hot*0.34+uPulse*0.06*uResponse)*uCoreWeight);}`;
@@ -1673,6 +1742,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             if (!this.available) return;
             const seedChanged = recipe.seed !== this.recipe.seed;
             this.recipe = Object.assign({}, this.recipe, recipe);
+            this.setRotation(this.recipe.rotation);
             if (seedChanged) this.reseed(this.recipe.seed);
             const u = this.uniforms;
             u.uFamily.value = this.recipe.family; u.uForm.value = this.recipe.form; u.uMotion.value = this.recipe.motion; u.uDepth.value = this.recipe.depth;
@@ -1681,6 +1751,11 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             u.uSymmetry.value = this.recipe.symmetry; u.uWarp.value = this.recipe.warp; u.uScale.value = this.recipe.scale;
             this.camera.fov = 44 + this.recipe.depth * 38; this.camera.updateProjectionMatrix();
             this.updateDrawRange();
+        }
+        setRotation(value) {
+            const clean = Math.max(-1, Math.min(1, Number(value) || 0));
+            this.recipe.rotation = Math.abs(clean) < 0.025 ? 0 : clean;
+            if (!this.recipe.rotation) this.manualVelocityYaw = 0;
         }
         setDrift(x, y) {
             this.drift.x = Math.max(0, Math.min(1, x)); this.drift.y = Math.max(0, Math.min(1, y));
@@ -1733,7 +1808,12 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             this.manualVelocityYaw = this.reducedMotion ? 0 : dx * sensitivity * frameScale * 0.48;
             this.manualVelocityPitch = this.reducedMotion ? 0 : dy * sensitivity * 0.78 * frameScale * 0.42;
         }
-        endManualRotation() { this.manualDragging = false; }
+        endManualRotation() {
+            this.manualDragging = false;
+            // Horizontal momentum continues through the Rotation parameter, which is
+            // synchronized by the gesture controller. Avoid a second hidden spin.
+            this.manualVelocityYaw = 0;
+        }
         resetManualRotation() {
             this.manualYaw = 0; this.manualPitch = 0; this.manualVelocityYaw = 0; this.manualVelocityPitch = 0;
         }
@@ -1766,6 +1846,9 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             );
             this.ringMaterial.color.copy(this.uniforms.uColor.value);
             this.coreGlowMaterial.color.copy(this.uniforms.uAccent.value);
+            this.nebulaLayers.forEach((layer, index) => {
+                layer.material.color.copy(index ? this.uniforms.uSecond.value : this.uniforms.uAccent.value);
+            });
             const bg = new window.THREE.Color(`rgb(${background.r},${background.g},${background.b})`);
             this.renderer.setClearColor(bg, 1); this.scene.fog.color.copy(bg);
         }
@@ -1854,8 +1937,11 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             const breathDepth = this.recipe.response * (0.55 + this.recipe.response * 0.45);
             const breathScale = 1 + breathSignal * (0.12 + this.recipe.form * 0.1) * breathDepth;
             this.root.scale.setScalar(breathScale);
-            // Rotation should support spatial depth without competing with coherent breathing.
-            this.autoYaw += flowDt * 0.000055 * this.recipe.rotation * (0.35 + this.recipe.motion * 1.15);
+            // Bipolar rotation has a true still point and a deliberately calm maximum.
+            // Motion controls particle energy only; it never accelerates this orientation.
+            const rotationInput = Math.abs(this.recipe.rotation) < 0.025 ? 0 : this.recipe.rotation;
+            const rotationEnergy = Math.sign(rotationInput) * Math.pow(Math.abs(rotationInput), 1.4);
+            this.autoYaw += flowDt * 0.00012 * rotationEnergy;
             if (!this.manualDragging) {
                 const frame = flowDt / 16.67;
                 this.manualYaw += this.manualVelocityYaw * frame;
@@ -1870,11 +1956,12 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             this.core.visible = this.coreBlend > 0.004;
             this.coreGlow.visible = this.core.visible;
             this.rings.visible = this.ringBlend > 0.004;
-            this.core.rotation.x += flowDt * 0.0001 * (0.4 + this.recipe.motion); this.core.rotation.y -= flowDt * 0.00014 * (0.4 + this.recipe.motion);
+            this.core.rotation.x += flowDt * 0.000018 * rotationEnergy;
+            this.core.rotation.y += flowDt * 0.000032 * rotationEnergy;
             this.coreGlow.scale.setScalar(1 + (u.uBreath.value-0.5)*0.34*this.recipe.response);
             const lightHot = this.recipe.light * this.recipe.light * this.recipe.light;
             this.coreGlowMaterial.opacity = (0.024 + this.recipe.light * 0.065 + lightHot * 0.14 + this.pulse*0.012*this.recipe.response) * this.coreBlend;
-            this.rings.rotation.z -= flowDt * 0.000035 * (0.2 + this.recipe.motion * 2.0);
+            this.rings.rotation.z += flowDt * 0.000025 * rotationEnergy;
             const orbitAccent = Math.min(1, this.ringProfiles.orbit || 0);
             const cathedralAccent = Math.min(1, this.ringProfiles.cathedral || 0);
             const mandalaAccent = Math.min(1, this.ringProfiles.mandala || 0);
@@ -1887,6 +1974,21 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
                 ringScale * (1 - cathedralAccent * 0.12 - mandalaAccent * 0.58)
             );
             this.ringMaterial.opacity = (0.05 + this.recipe.atmosphere * 0.1 + this.recipe.light * 0.04 + lightHot * 0.1 + this.pulse*0.014*this.recipe.response) * this.ringBlend;
+            const atmosphereEnergy = Math.pow(this.recipe.atmosphere, 1.45);
+            const nebulaMotion = 0.04 + this.recipe.motion * this.recipe.motion * 0.18;
+            this.nebulaLayers.forEach((layer, index) => {
+                const opacity = atmosphereEnergy * (index ? 0.09 : 0.14) * (0.55 + this.recipe.light * 0.45) * Math.pow(this.mixStrength, 0.72);
+                layer.material.opacity = opacity;
+                layer.sprite.visible = opacity > 0.0015;
+                const phase = layer.phase;
+                layer.sprite.position.x = Math.sin(this.flowTime * nebulaMotion + phase) * (0.16 + this.recipe.motion * 0.22);
+                layer.sprite.position.y = Math.cos(this.flowTime * nebulaMotion * 0.78 + phase * 1.3) * (0.12 + this.recipe.motion * 0.16);
+                layer.sprite.position.z = layer.baseZ + Math.sin(this.flowTime * nebulaMotion * 0.52 + phase) * this.recipe.depth * 0.34;
+                const breathe = 1 + (u.uBreath.value - 0.5) * 0.1 * this.recipe.response;
+                const fluid = 1 + Math.sin(this.flowTime * nebulaMotion * 0.64 + phase) * (0.018 + this.recipe.motion * 0.025);
+                const scale = layer.baseScale * breathe * fluid;
+                layer.sprite.scale.set(scale * (1 + this.recipe.depth * 0.12), scale * (index ? 0.76 : 0.88), 1);
+            });
             const tunnelBlend = this.layerFamilies.reduce((sum, family, index) => sum + (family === 2 ? this.layerBudgetWeights[index] : 0), 0);
             const tunnelTravel = ((this.flowTime*(0.08+this.recipe.motion*0.22))%1.8) * Math.min(1, tunnelBlend);
             this.camera.position.z = 8.4 - tunnelTravel;
@@ -1903,7 +2005,13 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             return { points: this.currentPointCount, calls: this.renderer.info.render.calls, scale: this.qualityScale, tier:this.hardwareTier, targetFps:this.targetFrameInterval ? Math.round(1000/this.targetFrameInterval) : 60, gpu:this.gpuRenderer };
         }
         dispose() {
-            try { if (this.raf) cancelAnimationFrame(this.raf); if (this.resizeObserver) this.resizeObserver.disconnect(); if (this.renderer) this.renderer.dispose(); } catch (error) {}
+            try {
+                if (this.raf) cancelAnimationFrame(this.raf);
+                if (this.resizeObserver) this.resizeObserver.disconnect();
+                this.nebulaLayers.forEach(layer => layer.material.dispose());
+                if (this.nebulaTexture) this.nebulaTexture.dispose();
+                if (this.renderer) this.renderer.dispose();
+            } catch (error) {}
             this.available = false;
         }
     }
@@ -2380,12 +2488,17 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             Object.entries(labSliders).forEach(([id, key]) => {
                 const slider = getEl(id);
                 slider.addEventListener('input', () => {
-                    this.visualRecipe[key] = parseFloat(slider.value);
-                    getEl(id + '-val').value = Math.round(this.visualRecipe[key] * 100);
-                    this.infiniteViz.setRecipe(this.visualRecipe);
-                    if (key === 'colorVariance') this.viz.setColorVariance(this.visualRecipe.colorVariance);
-                    this.updateLabMix(this.currentX, this.currentY);
-                    this.updateVisualFamily();
+                    const value = parseFloat(slider.value);
+                    if (key === 'rotation') {
+                        this.setRotationControl(value);
+                    } else {
+                        this.visualRecipe[key] = value;
+                        getEl(id + '-val').value = Math.round(value * 100);
+                        this.infiniteViz.setRecipe(this.visualRecipe);
+                        if (key === 'colorVariance') this.viz.setColorVariance(this.visualRecipe.colorVariance);
+                        this.updateLabMix(this.currentX, this.currentY);
+                        this.updateVisualFamily();
+                    }
                 }, { passive: true });
                 slider.addEventListener('change', () => this.rememberVisualRecipe());
             });
@@ -2449,15 +2562,45 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             });
         }
 
+        formatRotationValue(value) {
+            const clean = Math.abs(Number(value) || 0) < 0.025 ? 0 : Math.max(-1, Math.min(1, Number(value) || 0));
+            if (!clean) return 'Still';
+            const amount = Math.round(Math.abs(clean) * 100);
+            return clean < 0 ? `← ${amount}` : `${amount} →`;
+        }
+        setRotationControl(value) {
+            if (!this.visualRecipe) return 0;
+            const clean = Math.max(-1, Math.min(1, Number(value) || 0));
+            const next = Math.abs(clean) < 0.025 ? 0 : clean;
+            this.visualRecipe.rotation = next;
+            const slider = document.getElementById('lab-rotation');
+            const output = document.getElementById('lab-rotation-val');
+            if (slider && Math.abs(Number(slider.value) - next) > 0.0001) slider.value = next;
+            if (output) output.value = this.formatRotationValue(next);
+            if (this.infiniteViz) this.infiniteViz.setRotation(next);
+            this.viz.setAutoRotation(next);
+            return next;
+        }
+        setRotationFromGesture(dx, dt) {
+            if (Math.abs(dx) < 0.15) return false;
+            const velocity = dx / Math.max(8, Math.min(40, dt || 16.67));
+            if (Math.abs(velocity) < 0.012) return false;
+            const target = Math.sign(velocity) * Math.min(1, Math.pow(Math.abs(velocity) / 0.72, 0.72));
+            const current = Number(this.visualRecipe.rotation) || 0;
+            const changingDirection = current && Math.sign(current) !== Math.sign(target);
+            const blend = changingDirection ? 0.58 : 0.34;
+            this.setRotationControl(current + (target - current) * blend);
+            return true;
+        }
         setupVisualRotationDrag() {
             const area = document.getElementById('visual-area');
             if (!area || !this.infiniteViz) return;
             document.body.classList.add('visual-drag-enabled');
-            let pointerId = null, startX = 0, startY = 0, lastX = 0, lastY = 0, lastTime = 0, rotating = false;
+            let pointerId = null, startX = 0, startY = 0, lastX = 0, lastY = 0, lastTime = 0, rotating = false, rotationChanged = false;
             const isInteractive = target => target && target.closest && target.closest('button,input,select,a,label,summary,details,.top-ctrl,.float-btn,#instruction,#bottom-controls,#info-overlay,#summary-modal');
             area.addEventListener('pointerdown', event => {
                 if (event.isPrimary === false || (event.button !== undefined && event.button !== 0) || isInteractive(event.target)) return;
-                pointerId = event.pointerId; startX = lastX = event.clientX; startY = lastY = event.clientY; lastTime = performance.now(); rotating = false;
+                pointerId = event.pointerId; startX = lastX = event.clientX; startY = lastY = event.clientY; lastTime = performance.now(); rotating = false; rotationChanged = false;
                 try { area.setPointerCapture(pointerId); } catch (error) {}
             }, { passive:true });
             area.addEventListener('pointermove', event => {
@@ -2470,20 +2613,32 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
                 const now = performance.now();
                 if (rotating) {
                     event.preventDefault();
-                    this.infiniteViz.rotateManual(event.clientX-lastX,event.clientY-lastY,now-lastTime);
-                    this.viz.rotateManual(event.clientX-lastX,event.clientY-lastY,now-lastTime);
+                    const dx = event.clientX-lastX, dy = event.clientY-lastY, dt = now-lastTime;
+                    this.infiniteViz.rotateManual(dx,dy,dt);
+                    this.viz.rotateManual(dx,dy,dt);
+                    rotationChanged = this.setRotationFromGesture(dx,dt) || rotationChanged;
                 }
                 lastX = event.clientX; lastY = event.clientY; lastTime = now;
             }, { passive:false });
             const finish = event => {
                 if (pointerId === null || (event && event.pointerId !== pointerId)) return;
-                if (rotating) { if (event) event.preventDefault(); this.infiniteViz.endManualRotation(); this.viz.endManualRotation(); }
+                if (rotating) {
+                    if (event) event.preventDefault();
+                    this.infiniteViz.endManualRotation(); this.viz.endManualRotation();
+                    if (rotationChanged) this.rememberVisualRecipe();
+                }
                 try { area.releasePointerCapture(pointerId); } catch (error) {}
                 pointerId = null; rotating = false; document.body.classList.remove('visual-rotating');
             };
             area.addEventListener('pointerup', finish, { passive:false });
             area.addEventListener('pointercancel', finish, { passive:false });
-            area.addEventListener('lostpointercapture', () => { if (pointerId !== null) { this.infiniteViz.endManualRotation(); this.viz.endManualRotation(); pointerId=null; rotating=false; document.body.classList.remove('visual-rotating'); } });
+            area.addEventListener('lostpointercapture', () => {
+                if (pointerId !== null) {
+                    this.infiniteViz.endManualRotation(); this.viz.endManualRotation();
+                    if (rotationChanged) this.rememberVisualRecipe();
+                    pointerId=null; rotating=false; rotationChanged=false; document.body.classList.remove('visual-rotating');
+                }
+            });
         }
         resetVisualOrientation() {
             if (this.infiniteViz) this.infiniteViz.resetManualRotation();
@@ -2554,22 +2709,27 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             const clampSigned = (value, fallback = 0.35) => {
                 const number = Number(value); return Math.max(-1, Math.min(1, Number.isFinite(number) ? number : fallback));
             };
+            const clampRotation = value => {
+                const number = clampSigned(value);
+                return Math.abs(number) < 0.025 ? 0 : number;
+            };
             this.visualRecipe = {
                 seed: (recipe.seed >>> 0) || 1,
                 family: Math.max(0, Math.min(THREE_FAMILY_COUNT - 1, Math.round(Number(recipe.family) || 0))),
                 form: clamp(recipe.form), motion: clamp(recipe.motion), depth: clamp(recipe.depth),
                 light: clamp(recipe.light), complexity: Math.max(0.08, clamp(recipe.complexity)), atmosphere: clamp(recipe.atmosphere),
-                rotation: clampSigned(recipe.rotation), response: clamp(recipe.response, 0.62), colorVariance: clamp(recipe.colorVariance, 0.38), chaos: clamp(recipe.chaos, 0.22),
+                rotation: clampRotation(recipe.rotation), response: clamp(recipe.response, 0.62), colorVariance: clamp(recipe.colorVariance, 0.38), chaos: clamp(recipe.chaos, 0.22),
                 symmetry: clamp(recipe.symmetry, 0.6), warp: clamp(recipe.warp, 0.4), density: clamp(recipe.density, 0.65), scale: clamp(recipe.scale, 0.55)
             };
             ['form','motion','depth','light','complexity','atmosphere','rotation','response','colorVariance','chaos'].forEach(key => {
                 const slider = document.getElementById('lab-' + key);
                 const output = document.getElementById('lab-' + key + '-val');
                 if (slider) slider.value = this.visualRecipe[key];
-                if (output) output.value = Math.round(this.visualRecipe[key] * 100);
+                if (output) output.value = key === 'rotation' ? this.formatRotationValue(this.visualRecipe[key]) : Math.round(this.visualRecipe[key] * 100);
             });
             document.getElementById('seed-display').value = this.visualRecipe.seed.toString(16).toUpperCase().padStart(8, '0');
             this.infiniteViz.setRecipe(this.visualRecipe);
+            this.viz.setAutoRotation(this.visualRecipe.rotation);
             this.viz.setColorVariance(this.visualRecipe.colorVariance);
             this.updateLabMix(this.currentX, this.currentY);
             this.updateFamilySelector();
@@ -2771,9 +2931,10 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
             const totalClassic = Math.max(0.0001, Number(classicStrength) || Object.values(weights).reduce((sum, value) => sum + (Number(value) || 0), 0));
             const circleShare = Math.max(0, Math.min(1, (Number(weights.circle) || 0) / totalClassic));
             const rippleShare = Math.max(0, Math.min(1, (Number(weights.ripple) || 0) / totalClassic));
-            const key = [r.form,r.motion,r.depth,r.light,r.complexity,r.atmosphere,r.response,r.colorVariance,r.chaos,circleShare,rippleShare].map(value => Number(value).toFixed(3)).join('|');
+            const key = [r.form,r.motion,r.depth,r.light,r.complexity,r.atmosphere,r.rotation,r.response,r.colorVariance,r.chaos,circleShare,rippleShare].map(value => Number(value).toFixed(3)).join('|');
             if (key === this.lastClassicRecipeKey) return;
             this.lastClassicRecipeKey = key;
+            this.viz.setAutoRotation(r.rotation);
             // Family-aware Chaos keeps the original strengths intact: pure Licht is exactly
             // zero, pure Welle stays between four and eight percent. Other Classic modes can
             // use the full Lab control, and XY mixes interpolate continuously between them.
